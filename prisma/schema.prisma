@@ -1,0 +1,155 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String?   @unique
+  membershipId   String?   @unique // For gym members
+  nic            String?   @unique // National Identity Card
+  imageUrl       String?   // Profile picture URL
+  password       String
+  role           String    @default("MEMBER")
+  firstName      String
+  lastName       String
+  phone          String?
+  joinDate       DateTime  @default(now())
+  
+  // Member Specific
+  specialCases   String?
+  injuries       String?
+  dietAlerts     String?
+  
+  height         Float?
+  weight         Float?
+  targetWeight   Float?
+  
+  memberships    Membership[]
+  attendances    Attendance[]
+  metrics        PhysicalMetric[]
+  workoutPlans   WorkoutPlan[]
+  dietPlans      DietPlan[]
+  bookings       Booking[]
+  payments       Payment[]
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Membership {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  startDate      DateTime
+  endDate        DateTime
+  status         String    @default("ACTIVE")
+  
+  // Package Selection
+  branch         String?
+  packageTime    String?
+  packageName    String?
+  packageDuration String?
+  
+  baseFee        Float
+  maintenanceFee Float     @default(3000.0) // 3000 LKR
+  penaltyFee     Float     @default(0.0)    // 500 LKR per penalty
+  payments       Payment[]
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Attendance {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  checkIn        DateTime  @default(now())
+  checkOut       DateTime?
+}
+
+model PhysicalMetric {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  date           DateTime  @default(now())
+  weight         Float?    // in kg
+  bodyFat        Float?    // percentage
+  muscleMass     Float?    // in kg
+}
+
+model WorkoutPlan {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  title          String
+  description    String?
+  schedule       String    // Storing as JSON string for now
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model DietPlan {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  title          String
+  details        String    // Storing as JSON string for now
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Booking {
+  id        String   @id @default(cuid())
+  userId    String
+  dayOfWeek String
+  startTime String
+  endTime   String
+  status    String   @default("SCHEDULED") // SCHEDULED, CANCELLED, ATTENDED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id             String      @id @default(cuid())
+  userId         String
+  membershipId   String?
+  amount         Float
+  method         String      // "CASH", "CARD", "OTHER"
+  status         String      @default("COMPLETED")
+  description    String?
+  date           DateTime    @default(now())
+
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membership     Membership? @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model GymPlan {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  registrationFee Float @default(0)
+  duration    String   // e.g., "1 Month", "1 Year"
+  features    String   // JSON string array of features
+  isPopular   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
