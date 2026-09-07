@@ -54,8 +54,8 @@ router.post('/login', async (req, res) => {
 
     res.cookie('auth_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true, // MUST be true for sameSite: 'none'
+      sameSite: 'none', // Allow cross-domain cookies
       maxAge: 60 * 60 * 24 * 1000, 
       path: '/',
     });
@@ -102,8 +102,8 @@ router.post('/member-login', async (req, res) => {
     
     res.cookie("auth_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: true,
+      sameSite: "none",
       maxAge: 60 * 60 * 24 * 1000,
       path: "/",
     });
