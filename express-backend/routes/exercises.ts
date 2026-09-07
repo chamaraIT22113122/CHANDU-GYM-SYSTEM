@@ -61,9 +61,11 @@ router.get('/list', (req, res) => {
         if (parts.length >= 3) {
           const category = parts[0];
           const muscleGroup = parts[1];
-          if (!categories[category]) categories[category] = {};
-          if (!categories[category][muscleGroup]) categories[category][muscleGroup] = [];
-          categories[category][muscleGroup].push(basename);
+          if (category && muscleGroup) {
+            if (!categories[category]) categories[category] = {};
+            if (!categories[category][muscleGroup]) categories[category][muscleGroup] = [];
+            categories[category][muscleGroup].push(basename);
+          }
         }
       }
     }
