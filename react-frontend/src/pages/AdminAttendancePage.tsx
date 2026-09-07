@@ -2,8 +2,9 @@ import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, CalendarCheck, Clock, Search } from "lucide-react";
-import { motion } from "framer-motion";
+import { Loader2, CalendarCheck, Clock, Search, Scan, X, CheckCircle2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Html5QrcodeScanner } from "html5-qrcode";
 
 type AttendanceRecord = {
   id: string;
@@ -20,6 +21,11 @@ export default function AdminAttendancePage() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [manualToken, setManualToken] = useState("");
+  const [scanStatus, setScanStatus] = useState<{type: 'success' | 'error' | null, message: string}>({ type: null, message: '' });
+  const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
     const fetchAttendance = async () => {
@@ -38,6 +44,74 @@ export default function AdminAttendancePage() {
     fetchAttendance();
   }, []);
 
+  const handleScan = async (token: string) => {
+    if (isScanning) return;
+    setIsScanning(true);
+    setScanStatus({ type: null, message: '' });
+
+    try {
+      const res = await apiFetch('/api/attendance/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        setScanStatus({ type: 'success', message: data.message });
+        const fetchRes = await apiFetch(`/api/attendance`);
+        if (fetchRes.ok) {
+          setRecords(await fetchRes.json());
+        }
+      } else {
+        setScanStatus({ type: 'error', message: data.error || 'Failed to scan' });
+      }
+    } catch (err) {
+      setScanStatus({ type: 'error', message: 'Network error occurred' });
+    } finally {
+      setIsScanning(false);
+      setManualToken("");
+    }
+  };
+
+  useEffect(() => {
+    let scanner: any = null;
+
+    if (scannerOpen) {
+      // Import the core class instead of the scanner UI wrapper
+      import('html5-qrcode').then(({ Html5Qrcode }) => {
+        scanner = new Html5Qrcode("qr-reader");
+        
+        scanner.start(
+          { facingMode: "environment" }, // Prefer back camera
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText: string) => {
+            scanner.pause();
+            handleScan(decodedText).then(() => {
+              setTimeout(() => scanner.resume(), 3000);
+            });
+          },
+          (error: any) => {
+            // Ignore frame scan errors
+          }
+        ).catch((err: any) => {
+          console.error("Camera error:", err);
+          setScanStatus({ 
+            type: 'error', 
+            message: 'Could not access camera. Make sure you have given permission, or use Manual Entry.' 
+          });
+        });
+      });
+      
+      return () => {
+        if (scanner) {
+          scanner.stop().then(() => scanner.clear()).catch((e: any) => console.error(e));
+        }
+      };
+    }
+  }, [scannerOpen]);
+
   const filteredRecords = records.filter(record => 
     `${record.user.firstName} ${record.user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
     record.user.membershipId?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -51,15 +125,27 @@ export default function AdminAttendancePage() {
           <p className="text-gray-400 mt-1">Real-time gym check-in log.</p>
         </div>
         
-        <div className="relative w-full md:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-          <input 
-            type="text" 
-            placeholder="Search name or ID..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-black/20 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-gym-primary/50 transition-all"
-          />
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          <button
+            onClick={() => {
+              setScannerOpen(true);
+              setScanStatus({ type: null, message: '' });
+            }}
+            className="flex items-center gap-2 bg-gym-primary text-black px-4 py-2 rounded-xl font-bold hover:bg-gym-primary/90 transition-all whitespace-nowrap shadow-[0_0_15px_rgba(208,255,0,0.3)]"
+          >
+            <Scan className="h-5 w-5" />
+            Scan Pass
+          </button>
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+            <input 
+              type="text" 
+              placeholder="Search name or ID..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-black/20 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-gym-primary/50 transition-all"
+            />
+          </div>
         </div>
       </div>
 
@@ -148,6 +234,67 @@ export default function AdminAttendancePage() {
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {scannerOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#1A1A1A] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl"
+            >
+              <div className="flex justify-between items-center p-6 border-b border-white/10">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Scan className="h-6 w-6 text-gym-primary" />
+                  Scan Member QR Code
+                </h2>
+                <button 
+                  onClick={() => setScannerOpen(false)}
+                  className="text-gray-400 hover:text-white transition-colors p-1"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {scanStatus.type && (
+                  <div className={`p-4 rounded-xl flex items-start gap-3 ${
+                    scanStatus.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                  }`}>
+                    {scanStatus.type === 'success' ? <CheckCircle2 className="h-5 w-5 shrink-0" /> : <X className="h-5 w-5 shrink-0" />}
+                    <p className="text-sm font-medium leading-relaxed">{scanStatus.message}</p>
+                  </div>
+                )}
+
+                <div className="bg-black/50 rounded-xl overflow-hidden border border-white/5 relative min-h-[300px]">
+                  <div id="qr-reader" className="w-full"></div>
+                </div>
+
+                <div className="pt-4 border-t border-white/5">
+                  <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider font-semibold">Manual Entry (For Testing)</p>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={manualToken}
+                      onChange={(e) => setManualToken(e.target.value)}
+                      placeholder="Paste JWT Token here..."
+                      className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-gym-primary/50"
+                    />
+                    <button
+                      onClick={() => handleScan(manualToken)}
+                      disabled={isScanning || !manualToken}
+                      className="bg-white/10 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-white/20 disabled:opacity-50 transition-all"
+                    >
+                      {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Submit'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

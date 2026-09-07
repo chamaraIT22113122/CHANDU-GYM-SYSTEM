@@ -11,7 +11,8 @@ import {
   LogOut,
   UserCheck,
   CalendarCheck,
-  ShieldCheck
+  ShieldCheck,
+  Scan
 } from "lucide-react";
 
 const allAdminLinks = [
@@ -19,6 +20,7 @@ const allAdminLinks = [
   { name: "Members", href: "/admin/members", icon: Users, roles: ["ADMIN", "INSTRUCTOR"] },
   { name: "Instructors", href: "/admin/instructors", icon: UserCheck, roles: ["ADMIN"] },
   { name: "Attendance", href: "/admin/attendance", icon: CalendarCheck, roles: ["ADMIN", "INSTRUCTOR"] },
+  { name: "Scanner", href: "/admin/scanner", icon: Scan, roles: ["ADMIN", "INSTRUCTOR"] },
   { name: "Schedules", href: "/admin/schedules", icon: CalendarCheck, roles: ["ADMIN", "INSTRUCTOR"] },
   { name: "Billing", href: "/admin/billing", icon: CreditCard, roles: ["ADMIN"] },
   { name: "Plans", href: "/admin/plans", icon: LayoutDashboard, roles: ["ADMIN"] },

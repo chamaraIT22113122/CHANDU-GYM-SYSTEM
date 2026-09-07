@@ -10,6 +10,7 @@ import AdminLayout from './pages/AdminLayout';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminMembersPage from './pages/AdminMembersPage';
 import AdminAttendancePage from './pages/AdminAttendancePage';
+import AdminScannerPage from './pages/AdminScannerPage';
 import AdminBillingPage from './pages/AdminBillingPage';
 import AdminInstructorsPage from './pages/AdminInstructorsPage';
 import AdminPlansPage from './pages/AdminPlansPage';
@@ -37,6 +38,7 @@ function App() {
           <Route path="members" element={<AdminMembersPage />} />
           <Route path="members/:id" element={<AdminMemberDetailsPage />} />
           <Route path="attendance" element={<AdminAttendancePage />} />
+          <Route path="scanner" element={<AdminScannerPage />} />
           <Route path="billing" element={<AdminBillingPage />} />
           <Route path="instructors" element={<AdminInstructorsPage />} />
           <Route path="plans" element={<AdminPlansPage />} />

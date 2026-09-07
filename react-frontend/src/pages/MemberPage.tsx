@@ -2,6 +2,7 @@ import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { QrCode, Loader2, Calendar, Coffee, Flame, Users, TrendingDown, CheckCircle2, Activity, Footprints, Droplets, Plus, CalendarClock, Clock, X, CreditCard, Scale, ActivitySquare, ChevronRight, Home, CalendarDays, Dumbbell, TrendingUp, Wallet, AlertCircle, Utensils, CalendarCheck, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
@@ -9,12 +10,14 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function MemberPage() {
+  const location = useLocation();
   const [member, setMember] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
   const [completedSets, setCompletedSets] = useState<Record<number, number[]>>({});
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [qrToken, setQrToken] = useState<string | null>(null);
   
   // Date State for Workout & Diet
   const [selectedDateStr, setSelectedDateStr] = useState<string>(() => {
@@ -68,18 +71,13 @@ export default function MemberPage() {
   }, []);
 
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '');
-      if (['overview', 'schedule', 'diet', 'payments'].includes(hash)) {
-        setActiveTab(hash as any);
-      } else if (!hash) {
-        setActiveTab('overview');
-      }
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    handleHashChange();
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
+    const hash = location.hash.replace('#', '');
+    if (['overview', 'schedule', 'diet', 'payments', 'pass'].includes(hash)) {
+      setActiveTab(hash as any);
+    } else if (!hash) {
+      setActiveTab('overview');
+    }
+  }, [location.hash]);
 
   useEffect(() => {
     const fetchMemberData = async () => {
@@ -88,18 +86,19 @@ export default function MemberPage() {
         const data = await res.json();
         
         if (res.ok) {
-          if (data.dietPlans?.length > 0) {
-            data.dietPlanData = JSON.parse(data.dietPlans[0].details);
+          if (data.dietPlans?.length > 0 && data.dietPlans[0].details) {
+            try { data.dietPlanData = JSON.parse(data.dietPlans[0].details); } catch(e){}
           }
-          if (data.workoutPlans?.length > 0) {
-            data.workoutPlanData = JSON.parse(data.workoutPlans[0].schedule);
+          if (data.workoutPlans?.length > 0 && data.workoutPlans[0].schedule) {
+            try { data.workoutPlanData = JSON.parse(data.workoutPlans[0].schedule); } catch(e){}
           }
           setMember(data);
           
           // Fetch bookings and payments for this member
-          const [bookingsRes, paymentsRes] = await Promise.all([
+          const [bookingsRes, paymentsRes, tokenRes] = await Promise.all([
             apiFetch(`/api/bookings?userId=${data.id}`),
-            apiFetch(`/api/payments?userId=${data.id}`)
+            apiFetch(`/api/payments?userId=${data.id}`),
+            apiFetch(`/api/attendance/token`)
           ]);
 
           if (bookingsRes.ok) {
@@ -111,15 +110,46 @@ export default function MemberPage() {
             const paymentsData = await paymentsRes.json();
             setPayments(paymentsData);
           }
+          
+          if (tokenRes.ok) {
+            const tokenData = await tokenRes.json();
+            setQrToken(tokenData.token);
+          } else {
+            setQrToken("ERROR");
+          }
         }
       } catch (err) {
         console.error(err);
+        setQrToken("ERROR");
       } finally {
         setLoading(false);
       }
     };
     fetchMemberData();
   }, []);
+
+  // ── Dynamic QR Token: refresh every 30 seconds ────────────────────────────
+  const fetchQrToken = async () => {
+    try {
+      const res = await apiFetch('/api/attendance/token');
+      if (res.ok) {
+        const data = await res.json();
+        setQrToken(data.token);
+      } else {
+        setQrToken("ERROR");
+      }
+    } catch {
+      setQrToken("ERROR");
+    }
+  };
+
+  useEffect(() => {
+    // Start polling only when the pass tab is active
+    if (activeTab !== 'pass') return;
+    fetchQrToken();
+    const interval = setInterval(fetchQrToken, 30000); // refresh every 30s
+    return () => clearInterval(interval);
+  }, [activeTab]);
 
   const fetchBookings = async () => {
     if (!member) return;
@@ -674,6 +704,8 @@ export default function MemberPage() {
                                     loop 
                                     muted 
                                     playsInline 
+                                    controls
+                                    preload="metadata"
                                     className={`w-full h-full object-contain transition-opacity duration-500 ${isCompleted ? 'opacity-40 grayscale' : 'opacity-90 group-hover:opacity-100'}`}
                                   />
                                 ) : (
@@ -965,6 +997,86 @@ export default function MemberPage() {
         </motion.div>
       </div>
       </div>
+      )}
+
+      {/* PASS TAB */}
+      {activeTab === 'pass' && (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col items-center justify-center pt-8 pb-20">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="glass-panel p-8 flex flex-col items-center justify-center text-center max-w-sm w-full mx-auto relative overflow-hidden mt-8"
+          >
+            {/* Background design */}
+            <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-gym-primary/20 to-transparent opacity-50" />
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-gym-primary/10 rounded-full blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-gym-primary/10 rounded-full blur-3xl" />
+
+            <div className="relative z-10 w-full">
+              <h2 className="text-2xl font-bold text-white mb-1">Gym Pass</h2>
+              <p className="text-gray-400 text-sm mb-8">Scan this at the entrance</p>
+
+              {/* Anti-fraud animated border wrapper */}
+              <div className="relative mx-auto mb-6" style={{ width: 208, height: 208 }}>
+                {/* Animated spinning ring — proves this is a live app, not a screenshot */}
+                <div className="absolute inset-0 rounded-2xl" style={{
+                  background: 'conic-gradient(from 0deg, #ccff00, #00ff88, #00ccff, #ccff00)',
+                  animation: 'spin 3s linear infinite',
+                  padding: 3
+                }}>
+                  <div className="w-full h-full rounded-2xl bg-[#111]" />
+                </div>
+                <div className="absolute inset-[3px] bg-white rounded-[14px] flex items-center justify-center overflow-hidden">
+                  {qrToken && qrToken !== "ERROR" ? (
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrToken)}`} 
+                      alt="QR Code" 
+                      className="w-full h-full object-contain p-2"
+                    />
+                  ) : qrToken === "ERROR" ? (
+                    <div className="flex flex-col items-center justify-center text-red-500 px-4">
+                      <span className="text-xs text-center font-bold">Failed to load</span>
+                      <button onClick={fetchQrToken} className="text-[10px] text-gym-primary mt-2 underline">Retry</button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-gray-400">
+                      <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                      <span className="text-xs text-center">Generating...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-600 mb-3">🔄 Refreshes every 30 seconds</p>
+
+              {/* Copy token button — for manual entry on scanner */}
+              {qrToken && qrToken !== "ERROR" && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(qrToken);
+                    alert("Token copied! Paste it in the scanner's Manual Entry box.");
+                  }}
+                  className="text-xs text-gym-primary border border-gym-primary/30 px-4 py-1.5 rounded-full hover:bg-gym-primary/10 transition-all mb-4"
+                >
+                  📋 Copy Token for Manual Entry
+                </button>
+              )}
+
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 uppercase tracking-widest">Member ID</p>
+                <p className="text-xl font-mono text-gym-primary font-bold tracking-widest">{member.membershipId || member.id.substring(0, 8).toUpperCase()}</p>
+              </div>
+              
+              <div className="mt-8 pt-6 border-t border-white/10 w-full flex justify-between text-sm">
+                <span className="text-gray-500">Status</span>
+                {daysUntilPayment < 0 ? (
+                  <span className="text-red-500 font-bold flex items-center gap-1"><AlertCircle className="w-4 h-4" /> INACTIVE</span>
+                ) : (
+                  <span className="text-emerald-500 font-bold flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> ACTIVE</span>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
       )}
 
       {/* Reschedule Modal */}
