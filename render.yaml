@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: chandu-gym-backend
+    env: node
+    plan: free
+    rootDir: express-backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # User needs to set this in the Render dashboard (copy from their .env)
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 10000
