@@ -393,7 +393,7 @@ export default function MemberPage() {
       </div>
 
       {/* TABS */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2 border-b border-white/10 sticky top-16 z-30 bg-gym-dark/90 backdrop-blur-xl -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="hidden md:flex items-center gap-2 overflow-x-auto no-scrollbar py-2 border-b border-white/10 sticky top-16 z-30 bg-gym-dark/90 backdrop-blur-xl -mx-4 px-4 md:mx-0 md:px-0">
         {[
           { id: 'overview', label: 'Overview', icon: Home },
           { id: 'schedule', label: 'Schedule & Workouts', icon: CalendarDays },
