@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -61,8 +62,8 @@ export default function AdminBillingPage() {
     setLoading(true);
     try {
       const [billingRes, paymentsRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL || ""}/api/billing`),
-        fetch(`${import.meta.env.VITE_API_URL || ""}/api/payments`)
+        apiFetch(`/api/billing`),
+        apiFetch(`/api/payments`)
       ]);
       
       if (billingRes.ok) setMemberships(await billingRes.json());
@@ -141,7 +142,7 @@ export default function AdminBillingPage() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/payments/${editingPaymentId}`, {
+      const res = await apiFetch(`/api/payments/${editingPaymentId}`, {
         method: "DELETE"
       });
 

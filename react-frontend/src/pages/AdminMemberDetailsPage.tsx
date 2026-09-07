@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import { useState, useEffect } from "react";
 import { ArrowLeft, Loader2, Dumbbell, Utensils, Save, CheckCircle2, Plus, Trash2, CalendarClock, X, Activity, Scale, CalendarCheck, TrendingDown, Target, CalendarDays, Copy, Clipboard } from "lucide-react";
 import { Link } from 'react-router-dom';
@@ -66,7 +67,7 @@ export default function AdminMemberDetailsPage() {
 
   const fetchBookings = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/bookings?userId=${id}`);
+      const res = await apiFetch(`/api/bookings?userId=${id}`);
       if (res.ok) {
         const data = await res.json();
         setBookings(data);
@@ -92,7 +93,7 @@ export default function AdminMemberDetailsPage() {
       
       const promises = unbookedDays.map(dateStr => {
         const dayName = new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long' });
-        return fetch(`${import.meta.env.VITE_API_URL || ""}/api/bookings`, {
+        return apiFetch(`/api/bookings`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -126,7 +127,7 @@ export default function AdminMemberDetailsPage() {
   const cancelBooking = async (bookingId: string) => {
     if (!confirm("Are you sure you want to cancel this booking?")) return;
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/bookings/${bookingId}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/bookings/${bookingId}`, { method: "DELETE" });
       if (res.ok) {
         fetchBookings();
       }
@@ -145,12 +146,12 @@ export default function AdminMemberDetailsPage() {
     setIsRescheduling(true);
     try {
       if (selectedBooking) {
-        await fetch(`${import.meta.env.VITE_API_URL || ""}/api/bookings/${selectedBooking.id}`, { method: "DELETE" });
+        await apiFetch(`/api/bookings/${selectedBooking.id}`, { method: "DELETE" });
       }
 
       const dayName = new Date(rescheduleDate).toLocaleDateString('en-US', { weekday: 'long' });
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/bookings`, {
+      const res = await apiFetch(`/api/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -181,7 +182,7 @@ export default function AdminMemberDetailsPage() {
     e.preventDefault();
     setIsEditing(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/${id}`, {
+      const res = await apiFetch(`/api/members/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editFormData),
@@ -204,7 +205,7 @@ export default function AdminMemberDetailsPage() {
   useEffect(() => {
     const fetchMember = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/${id}`);
+        const res = await apiFetch(`/api/members/${id}`);
         const data = await res.json();
         setMember(data);
 
@@ -232,7 +233,7 @@ export default function AdminMemberDetailsPage() {
     
     const fetchGymPlans = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/plans`);
+        const res = await apiFetch(`/api/plans`);
         const data = await res.json();
         setGymPlans(data);
       } catch (err) {
@@ -242,7 +243,7 @@ export default function AdminMemberDetailsPage() {
     
     const fetchExerciseList = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/exercises/list`);
+        const res = await apiFetch(`/api/exercises/list`);
         if (res.ok) {
           const data = await res.json();
           setExerciseList(data);
@@ -268,7 +269,7 @@ export default function AdminMemberDetailsPage() {
         data: type === "workout" ? { days: workoutDays, notes: workoutNotes } : dietPlan
       };
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/${id}/plans`, {
+      const res = await apiFetch(`/api/members/${id}/plans`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -367,7 +368,7 @@ export default function AdminMemberDetailsPage() {
     setRenewSuccess(false);
     
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/${id}/membership`, {
+      const res = await apiFetch(`/api/members/${id}/membership`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -382,7 +383,7 @@ export default function AdminMemberDetailsPage() {
         setRenewSuccess(true);
         setSelectedPlan("");
         // Refresh member data
-        const updatedRes = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/${id}`);
+        const updatedRes = await apiFetch(`/api/members/${id}`);
         const updatedData = await updatedRes.json();
         setMember(updatedData);
         
@@ -456,7 +457,7 @@ export default function AdminMemberDetailsPage() {
           <button 
             onClick={async () => {
               if (!confirm("Are you sure you want to delete this member? This cannot be undone.")) return;
-              const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/${member.id}`, { method: "DELETE" });
+              const res = await apiFetch(`/api/members/${member.id}`, { method: "DELETE" });
               if (res.ok) navigate("/admin/members");
             }}
             className="px-4 py-2 text-sm font-medium bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-500/20"

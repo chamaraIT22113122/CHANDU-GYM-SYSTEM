@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -24,7 +25,7 @@ export default function AdminSchedulesPage() {
   const fetchBookings = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/bookings`);
+      const res = await apiFetch(`/api/bookings`);
       const data = await res.json();
       setBookings(data);
     } catch (err) {

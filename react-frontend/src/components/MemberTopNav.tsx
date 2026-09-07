@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -30,7 +31,7 @@ export default function MemberTopNav() {
     
     const fetchNotifications = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/notifications`, {
+        const res = await apiFetch(`/api/notifications`, {
           credentials: "include"
         });
         if (res.ok) {
@@ -53,7 +54,7 @@ export default function MemberTopNav() {
 
   const markAsRead = async () => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || ""}/api/notifications/mark-read`, {
+      await apiFetch(`/api/notifications/mark-read`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include"
@@ -66,7 +67,7 @@ export default function MemberTopNav() {
 
   const clearAll = async () => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || ""}/api/notifications/clear`, {
+      await apiFetch(`/api/notifications/clear`, {
         method: "POST",
         credentials: "include"
       });

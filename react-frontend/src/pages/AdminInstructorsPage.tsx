@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -24,7 +25,7 @@ export default function AdminInstructorsPage() {
   const fetchInstructors = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/instructors`);
+      const res = await apiFetch(`/api/instructors`);
       const data = await res.json();
       setInstructors(data);
     } catch (err) {
@@ -42,7 +43,7 @@ export default function AdminInstructorsPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/instructors`, {
+      const res = await apiFetch(`/api/instructors`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)

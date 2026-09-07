@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -20,7 +21,7 @@ export default function AdminPlansPage() {
   const fetchPlans = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/plans`);
+      const res = await apiFetch(`/api/plans`);
       if (res.ok) setPlans(await res.json());
     } catch (err) {
       console.error("Failed to fetch plans", err);
@@ -92,7 +93,7 @@ export default function AdminPlansPage() {
   const handleDeletePlan = async (id: string) => {
     if (!confirm("Are you sure you want to delete this plan?")) return;
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/plans/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/plans/${id}`, { method: "DELETE" });
       if (res.ok) fetchPlans();
     } catch (err) {
       console.error(err);

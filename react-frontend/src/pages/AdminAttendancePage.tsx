@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -23,7 +24,7 @@ export default function AdminAttendancePage() {
   useEffect(() => {
     const fetchAttendance = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/attendance`);
+        const res = await apiFetch(`/api/attendance`);
         const data = await res.json();
         if (res.ok) {
           setRecords(data);

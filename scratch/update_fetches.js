@@ -22,17 +22,36 @@ const files = walk(srcDir);
 let modifiedCount = 0;
 
 files.forEach(file => {
+  if (file.endsWith('api.ts')) return; // skip api.ts
+
   let content = fs.readFileSync(file, 'utf8');
   let originalContent = content;
 
-  // Replace fetch("http://localhost:5000/api/...
-  content = content.replace(/fetch\(['"`]http:\/\/localhost:5000\/api(.*?)(['"`])/g, 'fetch(`${import.meta.env.VITE_API_URL || ""}/api$1`');
+  // Replace fetch(`${import.meta.env.VITE_API_URL || ""}/api...`) with apiFetch("/api...")
+  const regex = /fetch\(\s*`\$\{import\.meta\.env\.VITE_API_URL \|\| ""\}(\/api.*?)`\s*(,|(?=\)))/g;
   
-  // Replace fetch("/api/...
-  // Look for exact matches of fetch("/api... or fetch('/api... or fetch(`/api...
-  content = content.replace(/fetch\(['"`]\/api(.*?)(['"`])/g, 'fetch(`${import.meta.env.VITE_API_URL || ""}/api$1`');
-
-  if (content !== originalContent) {
+  let match;
+  let hasReplaced = false;
+  
+  while ((match = regex.exec(content)) !== null) {
+    hasReplaced = true;
+  }
+  
+  if (hasReplaced) {
+    content = content.replace(regex, 'apiFetch(`$1`$2');
+    
+    // Add import statement at the top if not exists
+    if (!content.includes("import { apiFetch } from")) {
+      const depth = file.substring(srcDir.length + 1).split(path.sep).length - 1;
+      const relativePrefix = depth === 0 ? './' : '../'.repeat(depth);
+      const importPath = `${relativePrefix}lib/api`;
+      
+      const importLines = content.split('\n');
+      const firstNonCommentLineIndex = importLines.findIndex(l => !l.trim().startsWith('//') && l.trim() !== '');
+      importLines.splice(Math.max(0, firstNonCommentLineIndex), 0, `import { apiFetch } from "${importPath}";`);
+      content = importLines.join('\n');
+    }
+    
     fs.writeFileSync(file, content, 'utf8');
     modifiedCount++;
   }

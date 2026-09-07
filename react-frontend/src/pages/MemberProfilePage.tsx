@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -19,7 +20,7 @@ export default function MemberProfilePage() {
   useEffect(() => {
     const fetchMember = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/me`);
+        const res = await apiFetch(`/api/members/me`);
         if (res.ok) {
           const data = await res.json();
           setMember(data);
@@ -43,7 +44,7 @@ export default function MemberProfilePage() {
 
     try {
       // 1. Upload to storage
-      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/upload`, {
+      const uploadRes = await apiFetch(`/api/upload`, {
         method: "POST",
         body: formData,
       });
@@ -51,7 +52,7 @@ export default function MemberProfilePage() {
       
       if (uploadRes.ok && uploadData.url) {
         // 2. Update member DB
-        const updateRes = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/me`, {
+        const updateRes = await apiFetch(`/api/members/me`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imageUrl: uploadData.url }),
@@ -77,7 +78,7 @@ export default function MemberProfilePage() {
     e.preventDefault();
     setIsEditing(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/me`, {
+      const res = await apiFetch(`/api/members/me`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editFormData),

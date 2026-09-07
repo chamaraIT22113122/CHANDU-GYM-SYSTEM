@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -32,8 +33,8 @@ export default function AdminSettingsPage() {
   const fetchSettings = async () => {
     try {
       const [settingsRes, userRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL || ""}/api/settings`),
-        fetch(`${import.meta.env.VITE_API_URL || ""}/api/auth/me`)
+        apiFetch(`/api/settings`),
+        apiFetch(`/api/auth/me`)
       ]);
       if (settingsRes.ok) {
         const data = await settingsRes.json();
@@ -56,7 +57,7 @@ export default function AdminSettingsPage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/settings`, {
+      const res = await apiFetch(`/api/settings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings)
@@ -261,7 +262,7 @@ export default function AdminSettingsPage() {
                             return;
                           }
                           try {
-                            const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/auth/password`, {
+                            const res = await apiFetch(`/api/auth/password`, {
                               method: "PUT",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ currentPassword, newPassword }),

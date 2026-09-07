@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import { useState } from "react";
 import { Mail, ArrowRight, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
@@ -15,7 +16,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/auth/member-login`, {
+      const res = await apiFetch(`/api/auth/member-login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

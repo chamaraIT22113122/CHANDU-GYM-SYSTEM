@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -34,7 +35,7 @@ export default function Sidebar() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/auth/me`);
+        const res = await apiFetch(`/api/auth/me`);
         if (res.ok) {
           const data = await res.json();
           setRole(data.user?.role || null);
@@ -49,7 +50,7 @@ export default function Sidebar() {
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || ""}/api/auth/logout`, { method: "POST" });
+      await apiFetch(`/api/auth/logout`, { method: "POST" });
       navigate("/login");
     } catch (err) {
       console.error("Logout failed", err);

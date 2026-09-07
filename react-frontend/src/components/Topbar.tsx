@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import { useState, useRef, useEffect } from "react";
 import { Bell, Search, Menu, User, LogOut, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -25,7 +26,7 @@ export default function Topbar() {
     // Fetch notifications
     const fetchNotifications = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/notifications`, {
+        const res = await apiFetch(`/api/notifications`, {
           credentials: "include"
         });
         if (res.ok) {
@@ -49,7 +50,7 @@ export default function Topbar() {
 
   const markAsRead = async () => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || ""}/api/notifications/mark-read`, {
+      await apiFetch(`/api/notifications/mark-read`, {
         method: "POST",
         credentials: "include"
       });
@@ -61,7 +62,7 @@ export default function Topbar() {
 
   const clearAll = async () => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || ""}/api/notifications/clear`, {
+      await apiFetch(`/api/notifications/clear`, {
         method: "POST",
         credentials: "include"
       });

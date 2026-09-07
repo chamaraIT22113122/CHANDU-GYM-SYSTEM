@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import PublicNavbar from "../components/PublicNavbar";
 import { Link } from "react-router-dom";
 import { ArrowRight, CheckCircle } from "lucide-react";
@@ -7,7 +8,7 @@ export default function PricingPage() {
   const [plans, setPlans] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL || ""}/api/plans`)
+    apiFetch(`/api/plans`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setPlans(data);

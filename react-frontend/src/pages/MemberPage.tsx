@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -54,7 +55,7 @@ export default function MemberPage() {
   useEffect(() => {
     const fetchVideoMap = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/exercises/videos`);
+        const res = await apiFetch(`/api/exercises/videos`);
         if (res.ok) {
           const data = await res.json();
           setVideoMap(data);
@@ -83,7 +84,7 @@ export default function MemberPage() {
   useEffect(() => {
     const fetchMemberData = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/me`);
+        const res = await apiFetch(`/api/members/me`);
         const data = await res.json();
         
         if (res.ok) {
@@ -97,8 +98,8 @@ export default function MemberPage() {
           
           // Fetch bookings and payments for this member
           const [bookingsRes, paymentsRes] = await Promise.all([
-            fetch(`${import.meta.env.VITE_API_URL || ""}/api/bookings?userId=${data.id}`),
-            fetch(`${import.meta.env.VITE_API_URL || ""}/api/payments?userId=${data.id}`)
+            apiFetch(`/api/bookings?userId=${data.id}`),
+            apiFetch(`/api/payments?userId=${data.id}`)
           ]);
 
           if (bookingsRes.ok) {
@@ -123,7 +124,7 @@ export default function MemberPage() {
   const fetchBookings = async () => {
     if (!member) return;
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/bookings?userId=${member.id}`);
+      const res = await apiFetch(`/api/bookings?userId=${member.id}`);
       if (res.ok) {
         const data = await res.json();
         setBookings(data);
@@ -144,14 +145,14 @@ export default function MemberPage() {
     try {
       // If EDIT mode, first delete old booking
       if (scheduleModalMode === "EDIT" && selectedBooking) {
-        await fetch(`${import.meta.env.VITE_API_URL || ""}/api/bookings/${selectedBooking.id}`, { method: "DELETE" });
+        await apiFetch(`/api/bookings/${selectedBooking.id}`, { method: "DELETE" });
       }
 
       // Convert date string to day name for legacy support if needed
       const dayName = new Date(selectedScheduleDate).toLocaleDateString('en-US', { weekday: 'long' });
 
       // Create new booking
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/bookings`, {
+      const res = await apiFetch(`/api/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -201,7 +202,7 @@ export default function MemberPage() {
   const cancelBooking = async (bookingId: string) => {
     if (!confirm("Are you sure you want to cancel this booking?")) return;
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/bookings/${bookingId}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/bookings/${bookingId}`, { method: "DELETE" });
       if (res.ok) {
         fetchBookings();
       } else {
@@ -218,7 +219,7 @@ export default function MemberPage() {
     setCompletedSets({});
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/me/workout-history?date=${selectedDateStr}`);
+        const res = await apiFetch(`/api/members/me/workout-history?date=${selectedDateStr}`);
         if (res.ok) {
           const data = await res.json();
           if (data.completedSets && Object.keys(data.completedSets).length > 0) {
@@ -235,7 +236,7 @@ export default function MemberPage() {
   const handleSaveWorkout = async () => {
     setIsSavingWorkout(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/me/workout-history`, {
+      const res = await apiFetch(`/api/members/me/workout-history`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -276,7 +277,7 @@ export default function MemberPage() {
       if (bodyFatInput) payload.bodyFat = parseFloat(bodyFatInput);
       if (muscleMassInput) payload.muscleMass = parseFloat(muscleMassInput);
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/me/metrics`, {
+      const res = await apiFetch(`/api/members/me/metrics`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -286,7 +287,7 @@ export default function MemberPage() {
         setBodyFatInput("");
         setMuscleMassInput("");
         // Reload member data to get new metric
-        const memRes = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/me`);
+        const memRes = await apiFetch(`/api/members/me`);
         if (memRes.ok) {
           const data = await memRes.json();
           setMember(data);

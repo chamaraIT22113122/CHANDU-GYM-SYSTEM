@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import { Link } from "react-router-dom";
 import { ArrowRight, Play, CheckCircle, Users, Star, Dumbbell, Flame, Zap, Check } from "lucide-react";
 import { motion } from "framer-motion";
@@ -8,7 +9,7 @@ export default function HomePage() {
   const [plans, setPlans] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL || ""}/api/plans`)
+    apiFetch(`/api/plans`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setPlans(data);

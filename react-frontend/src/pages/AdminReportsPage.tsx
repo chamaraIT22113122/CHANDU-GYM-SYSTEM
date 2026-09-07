@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 "use client";
 
 import { useEffect, useState } from "react";
@@ -11,7 +12,7 @@ export default function AdminReportsPage() {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/reports`);
+        const res = await apiFetch(`/api/reports`);
         if (res.ok) {
           setData(await res.json());
         }

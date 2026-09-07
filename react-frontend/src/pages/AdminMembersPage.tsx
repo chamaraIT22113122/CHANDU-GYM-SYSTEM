@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -63,7 +64,7 @@ export default function AdminMembersPage() {
   const fetchMembers = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members`);
+      const res = await apiFetch(`/api/members`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setMembers(data);
@@ -72,7 +73,7 @@ export default function AdminMembersPage() {
         setMembers([]);
       }
       
-      const planRes = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/plans`);
+      const planRes = await apiFetch(`/api/plans`);
       const planData = await planRes.json();
       if (Array.isArray(planData)) {
         setGymPlans(planData);
@@ -99,7 +100,7 @@ export default function AdminMembersPage() {
     uploadData.append("file", file);
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/upload`, {
+      const res = await apiFetch(`/api/upload`, {
         method: "POST",
         body: uploadData,
       });
@@ -185,7 +186,7 @@ export default function AdminMembersPage() {
     if (!confirm("Are you sure you want to delete this member? This cannot be undone.")) return;
     
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/members/${id}`, { method: "DELETE" });
       if (res.ok) {
         fetchMembers();
       }
@@ -230,7 +231,7 @@ export default function AdminMembersPage() {
     
     // Auto-generate membership ID
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/members/next-id`);
+      const res = await apiFetch(`/api/members/next-id`);
       const data = await res.json();
       if (data.nextId) {
         setFormData(prev => ({ ...prev, membershipId: data.nextId }));

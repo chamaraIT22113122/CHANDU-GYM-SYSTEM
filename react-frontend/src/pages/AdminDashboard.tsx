@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import { useEffect, useState } from "react";
 import { Users, TrendingUp, AlertCircle, Banknote, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -16,7 +17,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/dashboard/overview`);
+        const res = await apiFetch(`/api/dashboard/overview`);
         if (res.ok) {
           setData(await res.json());
         }
