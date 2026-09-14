@@ -949,84 +949,85 @@ export default function MemberPage() {
                 {member.workoutPlanData ? (
                   (() => {
                     const currentWorkout = member?.workoutPlanData?.days?.find((d: any) => d.dayName === selectedDateStr) || { exercises: [] };
-                    return currentWorkout.exercises?.length > 0 ? (
-                      <div className="space-y-4 flex-1">
-                        {(() => {
-                        let totalSets = 0;
-                        let totalDone = 0;
-                        currentWorkout.exercises.forEach((ex: any, idx: number) => {
-                          totalSets += parseInt(ex.sets) || 0;
-                          totalDone += (completedSets[idx] || []).length;
-                        });
-                        const progressPct = totalSets > 0 ? (totalDone / totalSets) * 100 : 0;
-                        
-                        return (
-                          <div className="bg-gym-primary/10 border border-gym-primary/20 p-4 rounded-xl mb-4 relative overflow-hidden flex flex-col justify-center">
-                            <div className="flex justify-between items-center relative z-10 mb-2">
-                              <h4 className="text-sm font-bold text-gym-primary tracking-wide flex items-center gap-2">
-                                <Flame className="h-4 w-4" /> Assigned Workout
-                              </h4>
-                              <span className="text-xs font-bold text-gym-primary bg-black/40 px-2 py-1 rounded-lg">
-                                {totalDone} / {totalSets} Sets Completed
-                              </span>
-                            </div>
-                            
-                            {/* Progress Bar */}
-                            <div className="w-full bg-black/40 rounded-full h-1.5 mt-2 relative z-10 overflow-hidden">
-                              <motion.div 
-                                className="h-1.5 rounded-full bg-gradient-to-r from-gym-primary to-emerald-400" 
-                                initial={{ width: 0 }}
-                                animate={{ width: `${progressPct}%` }}
-                                transition={{ duration: 0.5 }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })()
-                    ) : null}
                     
-                    {/* Check-In / Check-Out Weights (Always show for Today) */}
-                    {selectedDateStr === todayStr && (
-                      <div className="bg-black/20 border border-white/5 p-4 rounded-xl mb-4">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
-                            <Scale className="h-4 w-4 text-gym-primary" /> Today's Session Weight
-                          </h4>
-                          
-                          <div className="flex items-center gap-4">
-                            {activeSession?.todayAttendance ? (
-                              <>
-                                <button 
-                                  onClick={() => setWeightPrompt({ type: 'IN', attendanceId: activeSession.todayAttendance.id })}
-                                  className="text-center group hover:bg-white/5 px-4 py-2 rounded-xl transition-all"
-                                >
-                                  <span className="text-[10px] uppercase font-bold text-gym-primary/70 block group-hover:text-gym-primary transition-colors">Weight In</span>
-                                  <p className="text-lg font-black text-white group-hover:scale-105 transition-transform">
-                                    {activeSession.todayAttendance.weightIn ? `${activeSession.todayAttendance.weightIn} kg` : <span className="text-gray-500 text-sm font-bold">+ Add</span>}
-                                  </p>
-                                </button>
-                                <button 
-                                  onClick={() => setWeightPrompt({ type: 'OUT', attendanceId: activeSession.todayAttendance.id })}
-                                  className="text-center group hover:bg-white/5 px-4 py-2 rounded-xl transition-all"
-                                >
-                                  <span className="text-[10px] uppercase font-bold text-gym-primary/70 block group-hover:text-gym-primary transition-colors">Weight Out</span>
-                                  <p className="text-lg font-black text-white group-hover:scale-105 transition-transform">
-                                    {activeSession.todayAttendance.weightOut ? `${activeSession.todayAttendance.weightOut} kg` : <span className="text-gray-500 text-sm font-bold">+ Add</span>}
-                                  </p>
-                                </button>
-                              </>
-                            ) : (
-                              <div className="text-center px-4 py-2 bg-black/40 rounded-lg border border-white/5">
-                                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Weight Tracking</p>
-                                <p className="text-sm font-medium text-white mt-1">Scan your Check-In QR to unlock</p>
+                    return (
+                      <div className="space-y-4 flex-1 flex flex-col">
+                        
+                        {/* Check-In / Check-Out Weights (Always show for Today) */}
+                        {selectedDateStr === todayStr && (
+                          <div className="bg-black/20 border border-white/5 p-4 rounded-xl mb-4 w-full">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+                                <Scale className="h-4 w-4 text-gym-primary" /> Today's Session Weight
+                              </h4>
+                              
+                              <div className="flex items-center gap-4">
+                                {activeSession?.todayAttendance ? (
+                                  <>
+                                    <button 
+                                      onClick={() => setWeightPrompt({ type: 'IN', attendanceId: activeSession.todayAttendance.id })}
+                                      className="text-center group hover:bg-white/5 px-4 py-2 rounded-xl transition-all"
+                                    >
+                                      <span className="text-[10px] uppercase font-bold text-gym-primary/70 block group-hover:text-gym-primary transition-colors">Weight In</span>
+                                      <p className="text-lg font-black text-white group-hover:scale-105 transition-transform">
+                                        {activeSession.todayAttendance.weightIn ? `${activeSession.todayAttendance.weightIn} kg` : <span className="text-gray-500 text-sm font-bold">+ Add</span>}
+                                      </p>
+                                    </button>
+                                    <button 
+                                      onClick={() => setWeightPrompt({ type: 'OUT', attendanceId: activeSession.todayAttendance.id })}
+                                      className="text-center group hover:bg-white/5 px-4 py-2 rounded-xl transition-all"
+                                    >
+                                      <span className="text-[10px] uppercase font-bold text-gym-primary/70 block group-hover:text-gym-primary transition-colors">Weight Out</span>
+                                      <p className="text-lg font-black text-white group-hover:scale-105 transition-transform">
+                                        {activeSession.todayAttendance.weightOut ? `${activeSession.todayAttendance.weightOut} kg` : <span className="text-gray-500 text-sm font-bold">+ Add</span>}
+                                      </p>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <div className="text-center px-4 py-2 bg-black/40 rounded-lg border border-white/5">
+                                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Weight Tracking</p>
+                                    <p className="text-sm font-medium text-white mt-1">Scan your Check-In QR to unlock</p>
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    )}
+                        )}
 
-                    {currentWorkout?.exercises?.length > 0 ? (
+                        {currentWorkout.exercises?.length > 0 ? (
+                          <>
+                            {(() => {
+                              let totalSets = 0;
+                              let totalDone = 0;
+                              currentWorkout.exercises.forEach((ex: any, idx: number) => {
+                                totalSets += parseInt(ex.sets) || 0;
+                                totalDone += (completedSets[idx] || []).length;
+                              });
+                              const progressPct = totalSets > 0 ? (totalDone / totalSets) * 100 : 0;
+                              
+                              return (
+                                <div className="bg-gym-primary/10 border border-gym-primary/20 p-4 rounded-xl mb-4 relative overflow-hidden flex flex-col justify-center">
+                                  <div className="flex justify-between items-center relative z-10 mb-2">
+                                    <h4 className="text-sm font-bold text-gym-primary tracking-wide flex items-center gap-2">
+                                      <Flame className="h-4 w-4" /> Assigned Workout
+                                    </h4>
+                                    <span className="text-xs font-bold text-gym-primary bg-black/40 px-2 py-1 rounded-lg">
+                                      {totalDone} / {totalSets} Sets Completed
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Progress Bar */}
+                                  <div className="w-full bg-black/40 rounded-full h-1.5 mt-2 relative z-10 overflow-hidden">
+                                    <motion.div 
+                                      className="h-1.5 rounded-full bg-gradient-to-r from-gym-primary to-emerald-400" 
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${progressPct}%` }}
+                                      transition={{ duration: 0.5 }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })()}
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {currentWorkout.exercises.map((ex: any, eIdx: number) => {
                           const targetSets = parseInt(ex.sets) || 1;
@@ -1148,8 +1149,8 @@ export default function MemberPage() {
                           </button>
                         </div>
                       )}
-                    </div>
-                  ) : (
+                      </>
+                    ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-white/5 rounded-xl bg-black/20 min-h-[300px]">
                       <div className="h-16 w-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
                         <Coffee className="h-8 w-8 text-gym-primary/50" />
@@ -1157,6 +1158,8 @@ export default function MemberPage() {
                       <p className="text-lg font-bold text-white mb-1">Rest Day</p>
                       <p className="text-sm text-gray-400">Your muscles grow when you rest. Enjoy your recovery!</p>
                     </div>
+                    )}
+                  </div>
                   );
                   })()
                 ) : (
