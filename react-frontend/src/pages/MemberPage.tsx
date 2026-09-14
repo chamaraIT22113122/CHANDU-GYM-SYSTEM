@@ -163,40 +163,74 @@ export default function MemberPage() {
 
   // ── Scanner Logic ────────────────────────────────────────────────────────
   useEffect(() => {
+    let isMounted = true;
+
     if (activeTab !== 'pass') {
       if (scannerRef.current) {
-        scannerRef.current.stop().then(() => scannerRef.current.clear()).catch(() => {});
-        scannerRef.current = null;
+        // Stop is async, swallow errors
+        scannerRef.current.stop().then(() => {
+          if (scannerRef.current) scannerRef.current.clear();
+          scannerRef.current = null;
+        }).catch(() => {
+          scannerRef.current = null;
+        });
       }
       return;
     }
     
-    let scanner: any = null;
+    // If already exists, don't re-init
+    if (scannerRef.current) return;
+
     import('html5-qrcode').then(({ Html5Qrcode }) => {
-      scanner = new Html5Qrcode("member-qr-reader");
+      if (!isMounted) return;
+      
+      const scanner = new Html5Qrcode("member-qr-reader");
       scannerRef.current = scanner;
 
-      scanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        (decodedText: string) => {
-          scanner.pause();
-          handleScan(decodedText);
-        },
-        () => {}
-      ).catch((err: any) => {
-        console.error("Camera error:", err);
-        setScanResult({
-          type: 'error',
-          message: 'Could not access camera. Please grant camera permissions.'
-        });
-      });
+      const startScanner = async () => {
+        try {
+          // Try back camera first
+          await scanner.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText: string) => {
+              if (scannerRef.current) scannerRef.current.pause();
+              handleScan(decodedText);
+            },
+            () => {}
+          );
+        } catch (err) {
+          if (!isMounted) return;
+          console.warn("Environment camera failed, trying default user camera...", err);
+          try {
+            // Fallback to front/default camera (mostly for laptops)
+            await scanner.start(
+              { facingMode: "user" },
+              { fps: 10, qrbox: { width: 250, height: 250 } },
+              (decodedText: string) => {
+                if (scannerRef.current) scannerRef.current.pause();
+                handleScan(decodedText);
+              },
+              () => {}
+            );
+          } catch (err2) {
+            if (!isMounted) return;
+            console.error("Camera error:", err2);
+            setScanResult({
+              type: 'error',
+              message: 'Could not access camera. Please grant camera permissions.'
+            });
+          }
+        }
+      };
+
+      startScanner();
     });
 
     return () => {
-      if (scanner) {
-        scanner.stop().then(() => scanner.clear()).catch(() => {});
-      }
+      isMounted = false;
+      // We don't stop the scanner here, we stop it when activeTab changes to avoid 
+      // strict mode / rapid remount race conditions breaking the camera driver.
     };
   }, [activeTab]);
 
