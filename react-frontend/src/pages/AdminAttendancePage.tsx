@@ -168,12 +168,11 @@ export default function AdminAttendancePage() {
                   const checkOutDate = record.checkOut ? new Date(record.checkOut) : null;
                   
                   let duration = "--";
-                  if (checkOutDate) {
-                    const diffMs = checkOutDate.getTime() - checkInDate.getTime();
-                    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-                    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                    duration = `${hours > 0 ? hours + 'h ' : ''}${mins}m`;
-                  }
+                  const durationEnd = checkOutDate || new Date();
+                  const diffMs = durationEnd.getTime() - checkInDate.getTime();
+                  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+                  const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                  duration = `${hours > 0 ? hours + 'h ' : ''}${mins}m`;
 
                   return (
                     <motion.tr 
