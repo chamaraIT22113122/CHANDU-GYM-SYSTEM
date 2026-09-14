@@ -2,7 +2,7 @@ import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, CalendarCheck, Clock, Search, Scan, X, CheckCircle2 } from "lucide-react";
+import { Loader2, CalendarCheck, Clock, Search, Scan, X, CheckCircle2, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Html5QrcodeScanner } from "html5-qrcode";
 
@@ -28,23 +28,46 @@ export default function AdminAttendancePage() {
   const [scanStatus, setScanStatus] = useState<{type: 'success' | 'error' | null, message: string}>({ type: null, message: '' });
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const fetchRecords = async () => {
+    try {
+      const attRes = await apiFetch(`/api/attendance`);
+      if (attRes.ok) setRecords(await attRes.json());
+    } catch (err) {
+      console.error("Failed to fetch records", err);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [attRes, memRes] = await Promise.all([
-          apiFetch(`/api/attendance`),
-          apiFetch(`/api/members`) // To get the list of members for the dropdown
-        ]);
-        if (attRes.ok) setRecords(await attRes.json());
+        const memRes = await apiFetch(`/api/members`); // To get the list of members for the dropdown
         if (memRes.ok) setMembers(await memRes.json());
+        await fetchRecords();
       } catch (err) {
-        console.error("Failed to fetch data", err);
+        console.error("Failed to fetch initial data", err);
       } finally {
         setLoading(false);
       }
     };
+    
     fetchData();
+
+    // Auto-refresh attendance records every 5 seconds so scans show up instantly
+    const interval = setInterval(fetchRecords, 5000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this check-in record?")) return;
+    try {
+      const res = await apiFetch(`/api/attendance/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setRecords(prev => prev.filter(r => r.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete record", err);
+    }
+  };
 
   const handleManualCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,6 +159,7 @@ export default function AdminAttendancePage() {
                   <th className="px-6 py-4 font-medium">Check In Time</th>
                   <th className="px-6 py-4 font-medium">Check Out Time</th>
                   <th className="px-6 py-4 font-medium">Duration</th>
+                  <th className="px-6 py-4 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -192,6 +216,15 @@ export default function AdminAttendancePage() {
                       </td>
                       <td className="px-6 py-4 text-gray-400 font-medium">
                         {duration}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => handleDelete(record.id)}
+                          className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          title="Delete Record"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </td>
                     </motion.tr>
                   );

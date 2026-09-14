@@ -355,4 +355,22 @@ router.post('/manual-checkin', async (req, res) => {
   }
 });
 
+// DELETE /api/attendance/:id - Admin deletes an attendance record
+router.delete('/:id', async (req, res) => {
+  try {
+    const tokenCookie = req.cookies?.auth_token;
+    if (!tokenCookie) return res.status(401).json({ error: "Unauthorized" });
+    const decoded = verifyToken(tokenCookie) as any;
+    if (!decoded || decoded.role !== 'ADMIN') return res.status(403).json({ error: "Forbidden" });
+
+    const { id } = req.params;
+    await db.query(`DELETE FROM "Attendance" WHERE id = $1`, [id]);
+    
+    return res.json({ success: true, message: "Record deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting attendance:", error);
+    return res.status(500).json({ error: "Failed to delete record" });
+  }
+});
+
 export default router;
