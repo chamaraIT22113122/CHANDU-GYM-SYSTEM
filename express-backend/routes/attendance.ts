@@ -51,6 +51,22 @@ router.get('/token', async (req, res) => {
     if (!decoded || !decoded.id) return res.status(401).json({ error: "Unauthorized" });
     const userId = decoded.id;
 
+    // Verify if the user has a schedule for today
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const bookingResult = await db.query(
+      `SELECT id FROM "Booking" WHERE "userId" = $1 AND "bookingDate" = $2 AND status = 'SCHEDULED' LIMIT 1`,
+      [userId, todayStr]
+    );
+
+    if (bookingResult.rows.length === 0) {
+      return res.status(403).json({ 
+        requiresSchedule: true, 
+        message: "No session scheduled for today." 
+      });
+    }
+
     // Generate a QR code token valid for 90 seconds (refreshed every 60s on frontend)
     const qrToken = jwt.sign(
       { type: 'attendance_qr', userId, date: new Date().toISOString().split('T')[0] },
@@ -65,13 +81,166 @@ router.get('/token', async (req, res) => {
   }
 });
 
-// POST /api/attendance/scan - Verify QR and mark check-in or check-out
+// Helper for processing check-in logic
+async function processCheckIn(userId: string, override: boolean) {
+  // Verify user exists
+  const userResult = await db.query(
+    'SELECT "firstName", "lastName", "membershipId" FROM "User" WHERE id = $1',
+    [userId]
+  );
+  if (userResult.rows.length === 0) {
+    return { status: 404, error: "Member not found" };
+  }
+  const user = userResult.rows[0];
+
+  // ── Schedule Validation ──────────────────────────────────────────────────
+  if (!override) {
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
+    const scheduleResult = await db.query(
+      `SELECT id, "startTime", "endTime" FROM "Booking" WHERE "userId" = $1 AND "bookingDate" = $2 AND status = 'SCHEDULED'`,
+      [userId, todayStr]
+    );
+
+    if (scheduleResult.rows.length === 0) {
+      return {
+        status: 403,
+        error: `${user.firstName} ${user.lastName} does not have a scheduled session today.`,
+        requiresOverride: true,
+        memberName: `${user.firstName} ${user.lastName}`
+      };
+    }
+
+    // Check if current time is within any of today's bookings (with 30 min grace period before)
+    const currentMinutes = d.getHours() * 60 + d.getMinutes();
+    let hasValidTimeSlot = false;
+
+    for (const booking of scheduleResult.rows) {
+      if (!booking.startTime || !booking.endTime) continue;
+      
+      const [startHour, startMin] = booking.startTime.split(':').map(Number);
+      const [endHour, endMin] = booking.endTime.split(':').map(Number);
+      
+      const startMinutes = startHour * 60 + startMin;
+      const endMinutes = endHour * 60 + endMin;
+      
+      // Allow check-in 30 minutes early, and any time before the end of the session
+      if (currentMinutes >= (startMinutes - 30) && currentMinutes <= endMinutes) {
+        hasValidTimeSlot = true;
+        break;
+      }
+    }
+
+    if (!hasValidTimeSlot) {
+      return {
+        status: 403,
+        error: `Access Denied: ${user.firstName} ${user.lastName} is not scheduled for this time slot.`,
+        requiresOverride: true,
+        memberName: `${user.firstName} ${user.lastName}`
+      };
+    }
+  }
+  // ── End Schedule Validation ──────────────────────────────────────────────
+
+  // ── Membership & Payment Validation ──────────────────────────────────────
+  if (!override) {
+    // 1. Check if member has an active membership
+    const membershipResult = await db.query(
+      `SELECT id, "endDate" FROM "Membership" WHERE "userId" = $1 ORDER BY "endDate" DESC LIMIT 1`,
+      [userId]
+    );
+
+    if (membershipResult.rows.length === 0) {
+      return {
+        status: 403,
+        error: `No membership found for ${user.firstName} ${user.lastName}. Please visit the front desk.`,
+        requiresOverride: true,
+        memberName: `${user.firstName} ${user.lastName}`
+      };
+    }
+
+    const membership = membershipResult.rows[0];
+    const endDate = new Date(membership.endDate);
+    const now = new Date();
+
+    if (endDate < now) {
+      return {
+        status: 403,
+        error: `Membership expired on ${endDate.toLocaleDateString('en-GB')} for ${user.firstName} ${user.lastName}. Please renew at the front desk.`,
+        requiresOverride: true,
+        memberName: `${user.firstName} ${user.lastName}`
+      };
+    }
+
+    // 2. Check for any pending/overdue payments
+    const paymentResult = await db.query(
+      `SELECT id FROM "Payment" WHERE "userId" = $1 AND status = 'PENDING' LIMIT 1`,
+      [userId]
+    );
+
+    if (paymentResult.rows.length > 0) {
+      return {
+        status: 403,
+        error: `${user.firstName} ${user.lastName} has a pending payment. Please clear dues at the front desk.`,
+        requiresOverride: true,
+        memberName: `${user.firstName} ${user.lastName}`
+      };
+    }
+  }
+  // ── End Validation ────────────────────────────────────────────────────────
+
+  // Check if member already has a check-in today (for check-out logic)
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const checkQuery = `
+    SELECT id, "checkOut" FROM "Attendance"
+    WHERE "userId" = $1 AND "checkIn" >= $2
+    ORDER BY "checkIn" DESC
+    LIMIT 1
+  `;
+  const checkResult = await db.query(checkQuery, [userId, startOfDay]);
+
+  if (checkResult.rows.length > 0) {
+    const existing = checkResult.rows[0];
+    
+    // If already checked in but not checked out, mark check-out
+    if (!existing.checkOut) {
+      await db.query(
+        `UPDATE "Attendance" SET "checkOut" = NOW() WHERE id = $1`,
+        [existing.id]
+      );
+      return {
+        status: 200,
+        success: true,
+        action: 'checkout',
+        message: `✅ Goodbye, ${user.firstName} ${user.lastName}! Have a great day!`
+      };
+    }
+  }
+
+  // Mark new check-in
+  await db.query(
+    `INSERT INTO "Attendance" ("id", "userId", "checkIn") VALUES (gen_random_uuid(), $1, NOW())`,
+    [userId]
+  );
+
+  return {
+    status: 200,
+    success: true,
+    action: 'checkin',
+    overridden: !!override,
+    message: `Welcome, ${user.firstName}${override ? ' (Admin Override)' : ''}! 💪`
+  };
+}
+
+// POST /api/attendance/scan - Verify member's QR (Old approach, kept for manual entry)
 router.post('/scan', async (req, res) => {
   try {
     const { token, override } = req.body;
     if (!token) return res.status(400).json({ error: "Missing QR token" });
 
-    // Verify the JWT token
     let decoded: any;
     try {
       decoded = jwt.verify(token, JWT_SECRET) as any;
@@ -90,108 +259,99 @@ router.post('/scan', async (req, res) => {
       return res.status(400).json({ error: "QR code is not valid for today" });
     }
 
-    // Verify user exists
-    const userResult = await db.query(
-      'SELECT "firstName", "lastName", "membershipId" FROM "User" WHERE id = $1',
-      [userId]
-    );
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: "Member not found" });
+    const result = await processCheckIn(userId, !!override);
+    if (result.status !== 200) {
+      return res.status(result.status).json(result);
     }
-    const user = userResult.rows[0];
-
-    // ── Membership & Payment Validation ──────────────────────────────────────
-    if (!override) {
-      // 1. Check if member has an active membership
-      const membershipResult = await db.query(
-        `SELECT id, "endDate" FROM "Membership" WHERE "userId" = $1 ORDER BY "endDate" DESC LIMIT 1`,
-        [userId]
-      );
-
-      if (membershipResult.rows.length === 0) {
-        return res.status(403).json({
-          error: `No membership found for ${user.firstName} ${user.lastName}. Please visit the front desk.`,
-          requiresOverride: true,
-          memberName: `${user.firstName} ${user.lastName}`
-        });
-      }
-
-      const membership = membershipResult.rows[0];
-      const endDate = new Date(membership.endDate);
-      const now = new Date();
-
-      if (endDate < now) {
-        return res.status(403).json({
-          error: `Membership expired on ${endDate.toLocaleDateString('en-GB')} for ${user.firstName} ${user.lastName}. Please renew at the front desk.`,
-          requiresOverride: true,
-          memberName: `${user.firstName} ${user.lastName}`
-        });
-      }
-
-      // 2. Check for any pending/overdue payments
-      const paymentResult = await db.query(
-        `SELECT id FROM "Payment" WHERE "userId" = $1 AND status = 'PENDING' LIMIT 1`,
-        [userId]
-      );
-
-      if (paymentResult.rows.length > 0) {
-        return res.status(403).json({
-          error: `${user.firstName} ${user.lastName} has a pending payment. Please clear dues at the front desk.`,
-          requiresOverride: true,
-          memberName: `${user.firstName} ${user.lastName}`
-        });
-      }
-    }
-    // ── End Validation ────────────────────────────────────────────────────────
-
-    // Check if member already has a check-in today (for check-out logic)
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const checkQuery = `
-      SELECT id, "checkOut" FROM "Attendance"
-      WHERE "userId" = $1 AND "checkIn" >= $2
-      ORDER BY "checkIn" DESC
-      LIMIT 1
-    `;
-    const checkResult = await db.query(checkQuery, [userId, startOfDay]);
-
-    if (checkResult.rows.length > 0) {
-      const existing = checkResult.rows[0];
-      
-      // If already checked in but not checked out, mark check-out
-      if (!existing.checkOut) {
-        await db.query(
-          `UPDATE "Attendance" SET "checkOut" = NOW() WHERE id = $1`,
-          [existing.id]
-        );
-        return res.json({
-          success: true,
-          action: 'checkout',
-          message: `✅ Goodbye, ${user.firstName} ${user.lastName}! Have a great day!`
-        });
-      } else {
-        // Already checked in AND out — allow a new check-in for another session
-        // (e.g., came back later in the day)
-      }
-    }
-
-    // Mark new check-in
-    await db.query(
-      `INSERT INTO "Attendance" ("id", "userId", "checkIn") VALUES (gen_random_uuid(), $1, NOW())`,
-      [userId]
-    );
-
-    return res.json({
-      success: true,
-      action: 'checkin',
-      overridden: !!override,
-      message: `Welcome, ${user.firstName}${override ? ' (Admin Override)' : ''}! 💪`
-    });
+    return res.json(result);
 
   } catch (error) {
     console.error("Error processing QR scan:", error);
     return res.status(500).json({ error: "Failed to process scan" });
+  }
+});
+
+// GET /api/attendance/kiosk-token - Generate a dynamic token for the gym's physical kiosk
+router.get('/kiosk-token', async (req, res) => {
+  try {
+    const tokenCookie = req.cookies?.auth_token;
+    if (!tokenCookie) return res.status(401).json({ error: "Unauthorized" });
+    const decoded = verifyToken(tokenCookie) as any;
+    
+    // Only admins should generate kiosk tokens
+    if (!decoded || decoded.role !== 'ADMIN') return res.status(403).json({ error: "Forbidden" });
+
+    // Generate a QR code token valid for 90 seconds
+    const qrToken = jwt.sign(
+      { type: 'kiosk_qr', gymId: 'chandu-gym', timestamp: Date.now() },
+      JWT_SECRET,
+      { expiresIn: '90s' }
+    );
+
+    return res.json({ token: qrToken });
+  } catch (error) {
+    console.error("Error generating kiosk token:", error);
+    return res.status(500).json({ error: "Failed to generate token" });
+  }
+});
+
+// POST /api/attendance/scan-kiosk - Member scans the kiosk token
+router.post('/scan-kiosk', async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Missing kiosk QR token" });
+
+    // Identify member scanning the token
+    const tokenCookie = req.cookies?.auth_token;
+    if (!tokenCookie) return res.status(401).json({ error: "Please log in to scan." });
+    const decodedUser = verifyToken(tokenCookie) as any;
+    if (!decodedUser || !decodedUser.id) return res.status(401).json({ error: "Unauthorized" });
+    const userId = decodedUser.id;
+
+    // Verify kiosk token
+    let decodedKiosk: any;
+    try {
+      decodedKiosk = jwt.verify(token, JWT_SECRET) as any;
+    } catch (err) {
+      return res.status(400).json({ error: "Invalid or expired Gym QR code. Please try again." });
+    }
+
+    if (decodedKiosk.type !== 'kiosk_qr') {
+      return res.status(400).json({ error: "Invalid token format." });
+    }
+
+    // Process check-in for the member
+    const result = await processCheckIn(userId, false); // No override from member phone
+    if (result.status !== 200) {
+      return res.status(result.status).json(result);
+    }
+    return res.json(result);
+
+  } catch (error) {
+    console.error("Error scanning kiosk:", error);
+    return res.status(500).json({ error: "Failed to process scan" });
+  }
+});
+
+// POST /api/attendance/manual-checkin - Admin explicitly checks in a user
+router.post('/manual-checkin', async (req, res) => {
+  try {
+    const tokenCookie = req.cookies?.auth_token;
+    if (!tokenCookie) return res.status(401).json({ error: "Unauthorized" });
+    const decoded = verifyToken(tokenCookie) as any;
+    if (!decoded || decoded.role !== 'ADMIN') return res.status(403).json({ error: "Forbidden" });
+
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: "Missing userId" });
+
+    const result = await processCheckIn(userId, true); // Force override = true
+    if (result.status !== 200) {
+      return res.status(result.status).json(result);
+    }
+    return res.json(result);
+  } catch (error) {
+    console.error("Error manual checkin:", error);
+    return res.status(500).json({ error: "Failed to manually check-in" });
   }
 });
 

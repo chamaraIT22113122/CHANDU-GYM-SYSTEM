@@ -22,38 +22,41 @@ export default function AdminAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   
-  const [scannerOpen, setScannerOpen] = useState(false);
-  const [manualToken, setManualToken] = useState("");
+  const [manualCheckinOpen, setManualCheckinOpen] = useState(false);
+  const [members, setMembers] = useState<any[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [scanStatus, setScanStatus] = useState<{type: 'success' | 'error' | null, message: string}>({ type: null, message: '' });
-  const [isScanning, setIsScanning] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    const fetchAttendance = async () => {
+    const fetchData = async () => {
       try {
-        const res = await apiFetch(`/api/attendance`);
-        const data = await res.json();
-        if (res.ok) {
-          setRecords(data);
-        }
+        const [attRes, memRes] = await Promise.all([
+          apiFetch(`/api/attendance`),
+          apiFetch(`/api/members`) // To get the list of members for the dropdown
+        ]);
+        if (attRes.ok) setRecords(await attRes.json());
+        if (memRes.ok) setMembers(await memRes.json());
       } catch (err) {
-        console.error("Failed to fetch attendance", err);
+        console.error("Failed to fetch data", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchAttendance();
+    fetchData();
   }, []);
 
-  const handleScan = async (token: string) => {
-    if (isScanning) return;
-    setIsScanning(true);
+  const handleManualCheckIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isProcessing || !selectedUserId) return;
+    setIsProcessing(true);
     setScanStatus({ type: null, message: '' });
 
     try {
-      const res = await apiFetch('/api/attendance/scan', {
+      const res = await apiFetch('/api/attendance/manual-checkin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
+        body: JSON.stringify({ userId: selectedUserId })
       });
       
       const data = await res.json();
@@ -64,53 +67,17 @@ export default function AdminAttendancePage() {
         if (fetchRes.ok) {
           setRecords(await fetchRes.json());
         }
+        setTimeout(() => setManualCheckinOpen(false), 2000);
       } else {
-        setScanStatus({ type: 'error', message: data.error || 'Failed to scan' });
+        setScanStatus({ type: 'error', message: data.error || 'Failed to check in' });
       }
     } catch (err) {
       setScanStatus({ type: 'error', message: 'Network error occurred' });
     } finally {
-      setIsScanning(false);
-      setManualToken("");
+      setIsProcessing(false);
+      setSelectedUserId("");
     }
   };
-
-  useEffect(() => {
-    let scanner: any = null;
-
-    if (scannerOpen) {
-      // Import the core class instead of the scanner UI wrapper
-      import('html5-qrcode').then(({ Html5Qrcode }) => {
-        scanner = new Html5Qrcode("qr-reader");
-        
-        scanner.start(
-          { facingMode: "environment" }, // Prefer back camera
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          (decodedText: string) => {
-            scanner.pause();
-            handleScan(decodedText).then(() => {
-              setTimeout(() => scanner.resume(), 3000);
-            });
-          },
-          (error: any) => {
-            // Ignore frame scan errors
-          }
-        ).catch((err: any) => {
-          console.error("Camera error:", err);
-          setScanStatus({ 
-            type: 'error', 
-            message: 'Could not access camera. Make sure you have given permission, or use Manual Entry.' 
-          });
-        });
-      });
-      
-      return () => {
-        if (scanner) {
-          scanner.stop().then(() => scanner.clear()).catch((e: any) => console.error(e));
-        }
-      };
-    }
-  }, [scannerOpen]);
 
   const filteredRecords = records.filter(record => 
     `${record.user.firstName} ${record.user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -128,13 +95,13 @@ export default function AdminAttendancePage() {
         <div className="flex items-center gap-4 w-full md:w-auto">
           <button
             onClick={() => {
-              setScannerOpen(true);
+              setManualCheckinOpen(true);
               setScanStatus({ type: null, message: '' });
             }}
             className="flex items-center gap-2 bg-gym-primary text-black px-4 py-2 rounded-xl font-bold hover:bg-gym-primary/90 transition-all whitespace-nowrap shadow-[0_0_15px_rgba(208,255,0,0.3)]"
           >
-            <Scan className="h-5 w-5" />
-            Scan Pass
+            <CheckCircle2 className="h-5 w-5" />
+            Manual Check-In
           </button>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
@@ -236,7 +203,7 @@ export default function AdminAttendancePage() {
       </div>
 
       <AnimatePresence>
-        {scannerOpen && (
+        {manualCheckinOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
@@ -246,11 +213,11 @@ export default function AdminAttendancePage() {
             >
               <div className="flex justify-between items-center p-6 border-b border-white/10">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Scan className="h-6 w-6 text-gym-primary" />
-                  Scan Member QR Code
+                  <CheckCircle2 className="h-6 w-6 text-gym-primary" />
+                  Manual Check-In
                 </h2>
                 <button 
-                  onClick={() => setScannerOpen(false)}
+                  onClick={() => setManualCheckinOpen(false)}
                   className="text-gray-400 hover:text-white transition-colors p-1"
                 >
                   <X className="h-6 w-6" />
@@ -267,29 +234,40 @@ export default function AdminAttendancePage() {
                   </div>
                 )}
 
-                <div className="bg-black/50 rounded-xl overflow-hidden border border-white/5 relative min-h-[300px]">
-                  <div id="qr-reader" className="w-full"></div>
-                </div>
-
-                <div className="pt-4 border-t border-white/5">
-                  <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider font-semibold">Manual Entry (For Testing)</p>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={manualToken}
-                      onChange={(e) => setManualToken(e.target.value)}
-                      placeholder="Paste JWT Token here..."
-                      className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-gym-primary/50"
-                    />
-                    <button
-                      onClick={() => handleScan(manualToken)}
-                      disabled={isScanning || !manualToken}
-                      className="bg-white/10 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-white/20 disabled:opacity-50 transition-all"
+                <form onSubmit={handleManualCheckIn} className="space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold block mb-2">Select Member</label>
+                    <select
+                      value={selectedUserId}
+                      onChange={(e) => setSelectedUserId(e.target.value)}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-gym-primary/50"
+                      required
                     >
-                      {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Submit'}
+                      <option value="">-- Choose Member --</option>
+                      {members.map(member => (
+                        <option key={member.id} value={member.id}>
+                          {member.firstName} {member.lastName} ({member.membershipId || member.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="bg-orange-500/10 border border-orange-500/30 p-4 rounded-xl">
+                    <p className="text-xs text-orange-400 leading-relaxed">
+                      <strong>Admin Override:</strong> This will bypass schedule, payment, and membership validation. Use this only when you need to manually allow a member entry.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={isProcessing || !selectedUserId}
+                      className="bg-gym-primary text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-gym-primary/90 disabled:opacity-50 transition-all flex items-center gap-2"
+                    >
+                      {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Force Check-In'}
                     </button>
                   </div>
-                </div>
+                </form>
               </div>
             </motion.div>
           </div>

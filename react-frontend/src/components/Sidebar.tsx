@@ -20,7 +20,7 @@ const allAdminLinks = [
   { name: "Members", href: "/admin/members", icon: Users, roles: ["ADMIN", "INSTRUCTOR"] },
   { name: "Instructors", href: "/admin/instructors", icon: UserCheck, roles: ["ADMIN"] },
   { name: "Attendance", href: "/admin/attendance", icon: CalendarCheck, roles: ["ADMIN", "INSTRUCTOR"] },
-  { name: "Scanner", href: "/admin/scanner", icon: Scan, roles: ["ADMIN", "INSTRUCTOR"] },
+  { name: "Scanner", href: "/kiosk/scanner", icon: Scan, roles: ["ADMIN", "INSTRUCTOR"] },
   { name: "Schedules", href: "/admin/schedules", icon: CalendarCheck, roles: ["ADMIN", "INSTRUCTOR"] },
   { name: "Billing", href: "/admin/billing", icon: CreditCard, roles: ["ADMIN"] },
   { name: "Plans", href: "/admin/plans", icon: LayoutDashboard, roles: ["ADMIN"] },
@@ -82,11 +82,11 @@ export default function Sidebar() {
             {role === "INSTRUCTOR" ? "Instructor Panel" : "Admin Panel"}
           </span>
           {visibleLinks.map((link) => {
-            const isActive = pathname === link.href || (pathname.startsWith(`${link.href}/`) && link.href !== "/admin");
+            const isKiosk = link.href.startsWith("/kiosk");
+            const isActive = !isKiosk && (pathname === link.href || (pathname.startsWith(`${link.href}/`) && link.href !== "/admin"));
             const Icon = link.icon;
             
-            return (
-              <Link key={link.name} to={link.href}>
+            const linkContent = (
                 <motion.div 
                   whileHover={{ x: 4 }}
                   whileTap={{ scale: 0.98 }}
@@ -98,7 +98,21 @@ export default function Sidebar() {
                 >
                   <Icon className={`h-5 w-5 ${isActive ? "text-[#ccff00]" : "text-gray-500"}`} />
                   {link.name}
+                  {isKiosk && <span className="ml-auto text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-gray-500">New Tab</span>}
                 </motion.div>
+            );
+
+            if (isKiosk) {
+              return (
+                <a key={link.name} href={link.href} target="_blank" rel="noopener noreferrer">
+                  {linkContent}
+                </a>
+              );
+            }
+
+            return (
+              <Link key={link.name} to={link.href}>
+                {linkContent}
               </Link>
             );
           })}

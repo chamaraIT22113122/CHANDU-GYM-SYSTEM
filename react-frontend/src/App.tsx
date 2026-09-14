@@ -18,6 +18,7 @@ import AdminReportsPage from './pages/AdminReportsPage';
 import AdminSchedulesPage from './pages/AdminSchedulesPage';
 import AdminSettingsPage from './pages/AdminSettingsPage';
 import AdminMemberDetailsPage from './pages/AdminMemberDetailsPage';
+import KioskLayout from './pages/KioskLayout';
 import MemberLayout from './pages/MemberLayout';
 import './App.css';
 
@@ -38,13 +39,17 @@ function App() {
           <Route path="members" element={<AdminMembersPage />} />
           <Route path="members/:id" element={<AdminMemberDetailsPage />} />
           <Route path="attendance" element={<AdminAttendancePage />} />
-          <Route path="scanner" element={<AdminScannerPage />} />
           <Route path="billing" element={<AdminBillingPage />} />
           <Route path="instructors" element={<AdminInstructorsPage />} />
           <Route path="plans" element={<AdminPlansPage />} />
           <Route path="reports" element={<AdminReportsPage />} />
           <Route path="schedules" element={<AdminSchedulesPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
+        </Route>
+        
+        {/* Kiosk Routes */}
+        <Route path="/kiosk" element={<KioskLayout />}>
+          <Route path="scanner" element={<AdminScannerPage />} />
         </Route>
         
         {/* Member Routes */}

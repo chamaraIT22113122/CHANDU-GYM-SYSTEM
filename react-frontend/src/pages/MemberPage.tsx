@@ -1,11 +1,48 @@
 import { apiFetch } from "../lib/api";
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { QrCode, Loader2, Calendar, Coffee, Flame, Users, TrendingDown, CheckCircle2, Activity, Footprints, Droplets, Plus, CalendarClock, Clock, X, CreditCard, Scale, ActivitySquare, ChevronRight, Home, CalendarDays, Dumbbell, TrendingUp, Wallet, AlertCircle, Utensils, CalendarCheck, Trash2 } from "lucide-react";
+import { QrCode, Loader2, Calendar, Coffee, Flame, Users, TrendingDown, CheckCircle2, Activity, Footprints, Droplets, Plus, CalendarClock, Clock, X, CreditCard, Scale, ActivitySquare, ChevronRight, Home, CalendarDays, Dumbbell, TrendingUp, Wallet, AlertCircle, Utensils, CalendarCheck, Trash2, Scan, LogIn, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
+
+// ── Audio helpers (Web Audio API) ────────────────────────────────────────────
+function playSuccess() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  } catch(e) {}
+}
+
+function playError() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(220, ctx.currentTime);
+    osc.frequency.setValueAtTime(180, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
+  } catch(e) {}
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+type ScanResult = { type: 'checkin' | 'checkout' | 'error' | null; message: string; };
 
 const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -17,7 +54,11 @@ export default function MemberPage() {
   const [completedSets, setCompletedSets] = useState<Record<number, number[]>>({});
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const [bookings, setBookings] = useState<any[]>([]);
-  const [qrToken, setQrToken] = useState<string | null>(null);
+  
+  // Scanner state
+  const [scanResult, setScanResult] = useState<ScanResult>({ type: null, message: '' });
+  const [isScanning, setIsScanning] = useState(false);
+  const scannerRef = useRef<any>(null);
   
   // Date State for Workout & Diet
   const [selectedDateStr, setSelectedDateStr] = useState<string>(() => {
@@ -110,17 +151,9 @@ export default function MemberPage() {
             const paymentsData = await paymentsRes.json();
             setPayments(paymentsData);
           }
-          
-          if (tokenRes.ok) {
-            const tokenData = await tokenRes.json();
-            setQrToken(tokenData.token);
-          } else {
-            setQrToken("ERROR");
-          }
         }
       } catch (err) {
         console.error(err);
-        setQrToken("ERROR");
       } finally {
         setLoading(false);
       }
@@ -128,28 +161,77 @@ export default function MemberPage() {
     fetchMemberData();
   }, []);
 
-  // ── Dynamic QR Token: refresh every 30 seconds ────────────────────────────
-  const fetchQrToken = async () => {
+  // ── Scanner Logic ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (activeTab !== 'pass') {
+      if (scannerRef.current) {
+        scannerRef.current.stop().then(() => scannerRef.current.clear()).catch(() => {});
+        scannerRef.current = null;
+      }
+      return;
+    }
+    
+    let scanner: any = null;
+    import('html5-qrcode').then(({ Html5Qrcode }) => {
+      scanner = new Html5Qrcode("member-qr-reader");
+      scannerRef.current = scanner;
+
+      scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText: string) => {
+          scanner.pause();
+          handleScan(decodedText);
+        },
+        () => {}
+      ).catch((err: any) => {
+        console.error("Camera error:", err);
+        setScanResult({
+          type: 'error',
+          message: 'Could not access camera. Please grant camera permissions.'
+        });
+      });
+    });
+
+    return () => {
+      if (scanner) {
+        scanner.stop().then(() => scanner.clear()).catch(() => {});
+      }
+    };
+  }, [activeTab]);
+
+  const handleScan = async (token: string) => {
+    if (isScanning) return;
+    setIsScanning(true);
+    setScanResult({ type: null, message: '' });
+
     try {
-      const res = await apiFetch('/api/attendance/token');
+      const res = await apiFetch('/api/attendance/scan-kiosk', {
+        method: 'POST',
+        body: JSON.stringify({ token })
+      });
+      const data = await res.json();
+      
       if (res.ok) {
-        const data = await res.json();
-        setQrToken(data.token);
+        playSuccess();
+        const action = data.action === 'checkout' ? 'checkout' : 'checkin';
+        setScanResult({ type: action, message: data.message });
       } else {
-        setQrToken("ERROR");
+        playError();
+        setScanResult({ type: 'error', message: data.error || 'Scan failed' });
       }
     } catch {
-      setQrToken("ERROR");
+      playError();
+      setScanResult({ type: 'error', message: 'Network error. Please try again.' });
+    } finally {
+      setIsScanning(false);
+      setTimeout(() => {
+        setScanResult({ type: null, message: '' });
+        if (scannerRef.current) { try { scannerRef.current.resume(); } catch {} }
+      }, 3500);
     }
   };
-
-  useEffect(() => {
-    // Start polling only when the pass tab is active
-    if (activeTab !== 'pass') return;
-    fetchQrToken();
-    const interval = setInterval(fetchQrToken, 30000); // refresh every 30s
-    return () => clearInterval(interval);
-  }, [activeTab]);
+  // ──────────────────────────────────────────────────────────────────────────
 
   const fetchBookings = async () => {
     if (!member) return;
@@ -999,83 +1081,83 @@ export default function MemberPage() {
       </div>
       )}
 
-      {/* PASS TAB */}
+      {/* PASS TAB - SCANNER */}
       {activeTab === 'pass' && (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col items-center justify-center pt-8 pb-20">
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="glass-panel p-8 flex flex-col items-center justify-center text-center max-w-sm w-full mx-auto relative overflow-hidden mt-8"
-          >
-            {/* Background design */}
-            <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-gym-primary/20 to-transparent opacity-50" />
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-gym-primary/10 rounded-full blur-3xl" />
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-gym-primary/10 rounded-full blur-3xl" />
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col items-center justify-start pt-4 pb-20">
+          
+          {/* Header */}
+          <div className="text-center mb-4 w-full">
+            <h1 className="text-2xl font-black text-white flex items-center justify-center gap-3">
+              <Scan className="h-6 w-6 text-gym-primary" />
+              Scan to Enter
+            </h1>
+            <p className="text-gray-400 mt-1 text-sm">Point your camera at the gym's kiosk screen.</p>
+          </div>
 
-            <div className="relative z-10 w-full">
-              <h2 className="text-2xl font-bold text-white mb-1">Gym Pass</h2>
-              <p className="text-gray-400 text-sm mb-8">Scan this at the entrance</p>
+          <div className="w-full max-w-sm bg-[#141414] border border-white/10 rounded-3xl overflow-hidden shadow-2xl shadow-black/50 p-6 flex flex-col items-center justify-center relative">
+            
+            <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black flex items-center justify-center border border-white/5 mb-4">
+              <div id="member-qr-reader" className="w-full h-full scanner-container" />
 
-              {/* Anti-fraud animated border wrapper */}
-              <div className="relative mx-auto mb-6" style={{ width: 208, height: 208 }}>
-                {/* Animated spinning ring — proves this is a live app, not a screenshot */}
-                <div className="absolute inset-0 rounded-2xl" style={{
-                  background: 'conic-gradient(from 0deg, #ccff00, #00ff88, #00ccff, #ccff00)',
-                  animation: 'spin 3s linear infinite',
-                  padding: 3
-                }}>
-                  <div className="w-full h-full rounded-2xl bg-[#111]" />
-                </div>
-                <div className="absolute inset-[3px] bg-white rounded-[14px] flex items-center justify-center overflow-hidden">
-                  {qrToken && qrToken !== "ERROR" ? (
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrToken)}`} 
-                      alt="QR Code" 
-                      className="w-full h-full object-contain p-2"
-                    />
-                  ) : qrToken === "ERROR" ? (
-                    <div className="flex flex-col items-center justify-center text-red-500 px-4">
-                      <span className="text-xs text-center font-bold">Failed to load</span>
-                      <button onClick={fetchQrToken} className="text-[10px] text-gym-primary mt-2 underline">Retry</button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-gray-400">
-                      <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                      <span className="text-xs text-center">Generating...</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <p className="text-[10px] text-gray-600 mb-3">🔄 Refreshes every 30 seconds</p>
+              {/* Overlay for scan results */}
+              <AnimatePresence>
+                {scanResult.type && (
+                  <motion.div
+                    key={scanResult.type}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center ${
+                      scanResult.type === 'checkin' ? 'bg-emerald-500' :
+                      scanResult.type === 'checkout' ? 'bg-sky-500' : 'bg-red-500'
+                    }`}
+                  >
+                    {scanResult.type === 'checkin' ? <LogIn className="h-16 w-16 text-white mb-2" /> :
+                     scanResult.type === 'checkout' ? <LogOut className="h-16 w-16 text-white mb-2" /> :
+                     <X className="h-16 w-16 text-white mb-2" />}
+                    
+                    <p className="text-white font-black text-lg tracking-wider uppercase">
+                      {scanResult.type === 'error' ? 'ACCESS BLOCKED' : 'SUCCESS'}
+                    </p>
+                    <p className="text-white/90 text-sm mt-1">
+                      {scanResult.message}
+                    </p>
 
-              {/* Copy token button — for manual entry on scanner */}
-              {qrToken && qrToken !== "ERROR" && (
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(qrToken);
-                    alert("Token copied! Paste it in the scanner's Manual Entry box.");
-                  }}
-                  className="text-xs text-gym-primary border border-gym-primary/30 px-4 py-1.5 rounded-full hover:bg-gym-primary/10 transition-all mb-4"
-                >
-                  📋 Copy Token for Manual Entry
-                </button>
-              )}
-
-              <div className="space-y-1">
-                <p className="text-xs text-gray-500 uppercase tracking-widest">Member ID</p>
-                <p className="text-xl font-mono text-gym-primary font-bold tracking-widest">{member.membershipId || member.id.substring(0, 8).toUpperCase()}</p>
-              </div>
-              
-              <div className="mt-8 pt-6 border-t border-white/10 w-full flex justify-between text-sm">
-                <span className="text-gray-500">Status</span>
-                {daysUntilPayment < 0 ? (
-                  <span className="text-red-500 font-bold flex items-center gap-1"><AlertCircle className="w-4 h-4" /> INACTIVE</span>
-                ) : (
-                  <span className="text-emerald-500 font-bold flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> ACTIVE</span>
+                    <button
+                      onClick={() => {
+                        setScanResult({ type: null, message: '' });
+                        if (scannerRef.current) { try { scannerRef.current.resume(); } catch {} }
+                      }}
+                      className="absolute top-2 right-2 bg-white/20 hover:bg-white/30 rounded-full p-1.5 transition-all"
+                    >
+                      <X className="h-4 w-4 text-white" />
+                    </button>
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
             </div>
-          </motion.div>
+
+            {/* Status indicator */}
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gym-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-gym-primary"></span>
+              </span>
+              <span className="text-xs text-gray-500">
+                {isScanning ? 'Processing...' : 'Scanner active — Align QR code'}
+              </span>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-white/10 w-full flex justify-between text-sm">
+              <span className="text-gray-500">Membership</span>
+              {daysUntilPayment < 0 ? (
+                <span className="text-red-500 font-bold flex items-center gap-1"><AlertCircle className="w-4 h-4" /> INACTIVE</span>
+              ) : (
+                <span className="text-emerald-500 font-bold flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> ACTIVE</span>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
