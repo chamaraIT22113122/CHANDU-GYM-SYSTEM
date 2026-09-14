@@ -961,64 +961,72 @@ export default function MemberPage() {
                         const progressPct = totalSets > 0 ? (totalDone / totalSets) * 100 : 0;
                         
                         return (
-                          <div className="bg-gym-primary/10 border border-gym-primary/20 p-4 rounded-xl mb-4 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex justify-between items-center relative z-10 mb-2">
-                                <h4 className="text-sm font-bold text-gym-primary tracking-wide flex items-center gap-2">
-                                  <Flame className="h-4 w-4" /> Assigned Workout
-                                </h4>
-                                <span className="text-xs font-bold text-gym-primary bg-black/40 px-2 py-1 rounded-lg">
-                                  {totalDone} / {totalSets} Sets Completed
-                                </span>
-                              </div>
-                              
-                              {/* Progress Bar */}
-                              <div className="w-full bg-black/40 rounded-full h-1.5 mt-2 relative z-10 overflow-hidden">
-                                <motion.div 
-                                  className="h-1.5 rounded-full bg-gradient-to-r from-gym-primary to-emerald-400" 
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${progressPct}%` }}
-                                  transition={{ duration: 0.5 }}
-                                />
-                              </div>
+                          <div className="bg-gym-primary/10 border border-gym-primary/20 p-4 rounded-xl mb-4 relative overflow-hidden flex flex-col justify-center">
+                            <div className="flex justify-between items-center relative z-10 mb-2">
+                              <h4 className="text-sm font-bold text-gym-primary tracking-wide flex items-center gap-2">
+                                <Flame className="h-4 w-4" /> Assigned Workout
+                              </h4>
+                              <span className="text-xs font-bold text-gym-primary bg-black/40 px-2 py-1 rounded-lg">
+                                {totalDone} / {totalSets} Sets Completed
+                              </span>
                             </div>
                             
-                            {/* Check-In / Check-Out Weights */}
-                            {selectedDateStr === todayStr && (
-                              <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-gym-primary/30 pt-4 md:pt-0 md:pl-4">
-                                {activeSession?.todayAttendance ? (
-                                  <>
-                                    <button 
-                                      onClick={() => setWeightPrompt({ type: 'IN', attendanceId: activeSession.todayAttendance.id })}
-                                      className="text-center group hover:bg-white/5 p-2 rounded-xl transition-all min-w-[80px]"
-                                    >
-                                      <span className="text-[10px] uppercase font-bold text-gym-primary/70 block group-hover:text-gym-primary transition-colors">Weight In</span>
-                                      <p className="text-lg font-black text-white group-hover:scale-105 transition-transform">
-                                        {activeSession.todayAttendance.weightIn ? `${activeSession.todayAttendance.weightIn} kg` : <span className="text-gray-500 text-sm font-bold">+ Add</span>}
-                                      </p>
-                                    </button>
-                                    <button 
-                                      onClick={() => setWeightPrompt({ type: 'OUT', attendanceId: activeSession.todayAttendance.id })}
-                                      className="text-center group hover:bg-white/5 p-2 rounded-xl transition-all min-w-[80px]"
-                                    >
-                                      <span className="text-[10px] uppercase font-bold text-gym-primary/70 block group-hover:text-gym-primary transition-colors">Weight Out</span>
-                                      <p className="text-lg font-black text-white group-hover:scale-105 transition-transform">
-                                        {activeSession.todayAttendance.weightOut ? `${activeSession.todayAttendance.weightOut} kg` : <span className="text-gray-500 text-sm font-bold">+ Add</span>}
-                                      </p>
-                                    </button>
-                                  </>
-                                ) : (
-                                  <div className="text-center w-full px-4 py-2 bg-black/40 rounded-lg border border-white/5">
-                                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Weight Tracking</p>
-                                    <p className="text-sm font-medium text-white mt-1">Scan your Check-In QR to unlock</p>
-                                  </div>
-                                )}
+                            {/* Progress Bar */}
+                            <div className="w-full bg-black/40 rounded-full h-1.5 mt-2 relative z-10 overflow-hidden">
+                              <motion.div 
+                                className="h-1.5 rounded-full bg-gradient-to-r from-gym-primary to-emerald-400" 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progressPct}%` }}
+                                transition={{ duration: 0.5 }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : null}
+                    
+                    {/* Check-In / Check-Out Weights (Always show for Today) */}
+                    {selectedDateStr === todayStr && (
+                      <div className="bg-black/20 border border-white/5 p-4 rounded-xl mb-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+                            <Scale className="h-4 w-4 text-gym-primary" /> Today's Session Weight
+                          </h4>
+                          
+                          <div className="flex items-center gap-4">
+                            {activeSession?.todayAttendance ? (
+                              <>
+                                <button 
+                                  onClick={() => setWeightPrompt({ type: 'IN', attendanceId: activeSession.todayAttendance.id })}
+                                  className="text-center group hover:bg-white/5 px-4 py-2 rounded-xl transition-all"
+                                >
+                                  <span className="text-[10px] uppercase font-bold text-gym-primary/70 block group-hover:text-gym-primary transition-colors">Weight In</span>
+                                  <p className="text-lg font-black text-white group-hover:scale-105 transition-transform">
+                                    {activeSession.todayAttendance.weightIn ? `${activeSession.todayAttendance.weightIn} kg` : <span className="text-gray-500 text-sm font-bold">+ Add</span>}
+                                  </p>
+                                </button>
+                                <button 
+                                  onClick={() => setWeightPrompt({ type: 'OUT', attendanceId: activeSession.todayAttendance.id })}
+                                  className="text-center group hover:bg-white/5 px-4 py-2 rounded-xl transition-all"
+                                >
+                                  <span className="text-[10px] uppercase font-bold text-gym-primary/70 block group-hover:text-gym-primary transition-colors">Weight Out</span>
+                                  <p className="text-lg font-black text-white group-hover:scale-105 transition-transform">
+                                    {activeSession.todayAttendance.weightOut ? `${activeSession.todayAttendance.weightOut} kg` : <span className="text-gray-500 text-sm font-bold">+ Add</span>}
+                                  </p>
+                                </button>
+                              </>
+                            ) : (
+                              <div className="text-center px-4 py-2 bg-black/40 rounded-lg border border-white/5">
+                                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Weight Tracking</p>
+                                <p className="text-sm font-medium text-white mt-1">Scan your Check-In QR to unlock</p>
                               </div>
                             )}
                           </div>
-                        );
-                      })()}
-                      
+                        </div>
+                      </div>
+                    )}
+
+                    {currentWorkout?.exercises?.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {currentWorkout.exercises.map((ex: any, eIdx: number) => {
                           const targetSets = parseInt(ex.sets) || 1;
