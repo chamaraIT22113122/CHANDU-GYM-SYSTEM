@@ -77,12 +77,6 @@ export default function AdminScannerPage() {
                   alt="Gym Kiosk QR" 
                   className="w-full h-full object-contain mix-blend-multiply"
                 />
-                {/* Scanning Laser Animation overlay */}
-                <motion.div 
-                  className="absolute left-6 right-6 h-1 bg-gym-primary shadow-[0_0_15px_#ccff00] rounded-full z-20"
-                  animate={{ top: ['10%', '90%', '10%'] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                />
               </div>
             ) : kioskToken === "ERROR" ? (
               <div className="flex flex-col items-center justify-center text-red-500 px-4 bg-red-500/5 w-full h-full">
