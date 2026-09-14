@@ -1,6 +1,4 @@
 {
-  "framework": null,
-  "outputDirectory": "react-frontend/dist",
   "rewrites": [
     {
       "source": "/api/(.*)",
