@@ -98,7 +98,38 @@ async function processCheckIn(userId: string, override: boolean) {
   }
   const user = userResult.rows[0];
 
-  // ── Schedule Validation ──────────────────────────────────────────────────
+  // ── Check-Out Logic (Must happen FIRST) ──────────────────────────────────
+  const startOfDay = getLocalTime();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const checkQuery = `
+    SELECT id, "checkOut" FROM "Attendance"
+    WHERE "userId" = $1 AND "checkIn" >= $2
+    ORDER BY "checkIn" DESC
+    LIMIT 1
+  `;
+  const checkResult = await db.query(checkQuery, [userId, startOfDay]);
+
+  if (checkResult.rows.length > 0) {
+    const existing = checkResult.rows[0];
+    
+    // If already checked in but not checked out, mark check-out and bypass all other validations
+    if (!existing.checkOut) {
+      await db.query(
+        `UPDATE "Attendance" SET "checkOut" = NOW() WHERE id = $1`,
+        [existing.id]
+      );
+      return {
+        status: 200,
+        success: true,
+        action: 'checkout',
+        message: `✅ Goodbye, ${user.firstName} ${user.lastName}! Have a great day!`
+      };
+    }
+  }
+  // ── End Check-Out Logic ──────────────────────────────────────────────────
+
+  // ── Schedule Validation (For Check-Ins Only) ─────────────────────────────
   if (!override) {
     const d = getLocalTime();
     const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -148,7 +179,7 @@ async function processCheckIn(userId: string, override: boolean) {
   }
   // ── End Schedule Validation ──────────────────────────────────────────────
 
-  // ── Membership & Payment Validation ──────────────────────────────────────
+  // ── Membership & Payment Validation (For Check-Ins Only) ────────────────
   if (!override) {
     // 1. Check if member has an active membership
     const membershipResult = await db.query(
@@ -194,36 +225,6 @@ async function processCheckIn(userId: string, override: boolean) {
     }
   }
   // ── End Validation ────────────────────────────────────────────────────────
-
-  // Check if member already has a check-in today (for check-out logic)
-  const startOfDay = getLocalTime();
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const checkQuery = `
-    SELECT id, "checkOut" FROM "Attendance"
-    WHERE "userId" = $1 AND "checkIn" >= $2
-    ORDER BY "checkIn" DESC
-    LIMIT 1
-  `;
-  const checkResult = await db.query(checkQuery, [userId, startOfDay]);
-
-  if (checkResult.rows.length > 0) {
-    const existing = checkResult.rows[0];
-    
-    // If already checked in but not checked out, mark check-out
-    if (!existing.checkOut) {
-      await db.query(
-        `UPDATE "Attendance" SET "checkOut" = NOW() WHERE id = $1`,
-        [existing.id]
-      );
-      return {
-        status: 200,
-        success: true,
-        action: 'checkout',
-        message: `✅ Goodbye, ${user.firstName} ${user.lastName}! Have a great day!`
-      };
-    }
-  }
 
   // Mark new check-in
   await db.query(
