@@ -612,12 +612,11 @@ export default function MemberPage() {
       bmiBg = "bg-red-500/10 border-red-500/20";
     }
   }
-
-  const targetWeight = member.targetWeight || null;
   
   const targetWeight = member.targetWeight || null;
   
-  // Real Gym Capacity (assuming max 30 people for this small/medium gym)
+  // Format dates to match selectedDateStr format (YYYY-MM-DD)
+  const todayStr = new Date().toISOString().split('T')[0];
   const MAX_CAPACITY = 30;
   const capacityPct = Math.min(100, Math.round((liveCapacity / MAX_CAPACITY) * 100));
   
@@ -707,7 +706,7 @@ export default function MemberPage() {
       )}
 
       {/* Live Capacity & Progress Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-panel p-6 border-l-4 border-l-blue-500 relative overflow-hidden flex flex-col justify-between">
           <div className="absolute -right-4 -top-4 opacity-[0.03] pointer-events-none">
             <Users className="h-32 w-32 text-blue-500" />
@@ -755,6 +754,37 @@ export default function MemberPage() {
               <p className="text-2xl font-black text-emerald-500 tracking-tighter">-{weightLost.toFixed(1)} <span className="text-xs font-medium text-emerald-500/70">kg</span></p>
             </div>
           </div>
+        </motion.div>
+      </div>
+
+      {/* Quick Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="glass-panel p-4 border border-white/5 flex flex-col justify-center items-center text-center">
+          <Flame className="h-6 w-6 text-orange-500 mb-2" />
+          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Current Streak</p>
+          <p className="text-2xl font-black text-white tracking-tight mt-1">{currentStreak} <span className="text-sm font-medium text-gray-500">days</span></p>
+        </motion.div>
+        
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.25 }} className={`glass-panel p-4 border border-white/5 flex flex-col justify-center items-center text-center ${bmiBg}`}>
+          <ActivitySquare className={`h-6 w-6 ${bmiColor} mb-2`} />
+          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">BMI: {bmiCategory}</p>
+          <p className="text-2xl font-black text-white tracking-tight mt-1">{bmi || '--'}</p>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }} className="glass-panel p-4 border border-white/5 flex flex-col justify-center items-center text-center">
+          <Dumbbell className="h-6 w-6 text-purple-500 mb-2" />
+          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Total Workouts</p>
+          <p className="text-2xl font-black text-white tracking-tight mt-1">
+            {member.workoutPlanData?.days?.reduce((acc: number, day: any) => acc + (day.exercises?.length || 0), 0) || 0}
+          </p>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.35 }} className="glass-panel p-4 border border-white/5 flex flex-col justify-center items-center text-center">
+          <CalendarClock className="h-6 w-6 text-blue-500 mb-2" />
+          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Next Session</p>
+          <p className="text-sm font-bold text-white mt-1">
+            {bookings.find(b => b.status === "SCHEDULED" && b.bookingDate >= todayStr)?.bookingDate || 'None booked'}
+          </p>
         </motion.div>
       </div>
 
@@ -921,25 +951,41 @@ export default function MemberPage() {
                         const progressPct = totalSets > 0 ? (totalDone / totalSets) * 100 : 0;
                         
                         return (
-                          <div className="bg-gym-primary/10 border border-gym-primary/20 p-4 rounded-xl mb-4 relative overflow-hidden">
-                            <div className="flex justify-between items-center relative z-10 mb-2">
-                              <h4 className="text-sm font-bold text-gym-primary tracking-wide flex items-center gap-2">
-                                <Flame className="h-4 w-4" /> Assigned Workout
-                              </h4>
-                              <span className="text-xs font-bold text-gym-primary bg-black/40 px-2 py-1 rounded-lg">
-                                {totalDone} / {totalSets} Sets Completed
-                              </span>
+                          <div className="bg-gym-primary/10 border border-gym-primary/20 p-4 rounded-xl mb-4 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex justify-between items-center relative z-10 mb-2">
+                                <h4 className="text-sm font-bold text-gym-primary tracking-wide flex items-center gap-2">
+                                  <Flame className="h-4 w-4" /> Assigned Workout
+                                </h4>
+                                <span className="text-xs font-bold text-gym-primary bg-black/40 px-2 py-1 rounded-lg">
+                                  {totalDone} / {totalSets} Sets Completed
+                                </span>
+                              </div>
+                              
+                              {/* Progress Bar */}
+                              <div className="w-full bg-black/40 rounded-full h-1.5 mt-2 relative z-10 overflow-hidden">
+                                <motion.div 
+                                  className="h-1.5 rounded-full bg-gradient-to-r from-gym-primary to-emerald-400" 
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${progressPct}%` }}
+                                  transition={{ duration: 0.5 }}
+                                />
+                              </div>
                             </div>
                             
-                            {/* Progress Bar */}
-                            <div className="w-full bg-black/40 rounded-full h-1.5 mt-2 relative z-10 overflow-hidden">
-                              <motion.div 
-                                className="h-1.5 rounded-full bg-gradient-to-r from-gym-primary to-emerald-400" 
-                                initial={{ width: 0 }}
-                                animate={{ width: `${progressPct}%` }}
-                                transition={{ duration: 0.5 }}
-                              />
-                            </div>
+                            {/* Check-In / Check-Out Weights */}
+                            {selectedDateStr === todayStr && activeSession?.todayAttendance && (
+                              <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-gym-primary/30 pt-4 md:pt-0 md:pl-4">
+                                <div className="text-center">
+                                  <span className="text-[10px] uppercase font-bold text-gym-primary/70 block">Weight In</span>
+                                  <p className="text-lg font-black text-white">{activeSession.weightIn ? `${activeSession.weightIn} kg` : '--'}</p>
+                                </div>
+                                <div className="text-center">
+                                  <span className="text-[10px] uppercase font-bold text-gym-primary/70 block">Weight Out</span>
+                                  <p className="text-lg font-black text-white">{activeSession.weightOut ? `${activeSession.weightOut} kg` : '--'}</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
