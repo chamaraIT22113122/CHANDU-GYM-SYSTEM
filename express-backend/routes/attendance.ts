@@ -98,13 +98,14 @@ router.get('/status', async (req, res) => {
     const startOfDay = getLocalTime();
     startOfDay.setHours(0, 0, 0, 0);
 
-    // 1. Check if they are currently checked in (no checkout)
+    // 1. Get latest attendance for today
     const checkQuery = `
-      SELECT "checkIn" FROM "Attendance"
-      WHERE "userId" = $1 AND "checkIn" >= $2 AND "checkOut" IS NULL
+      SELECT id, "checkIn", "checkOut", "weightIn", "weightOut" FROM "Attendance"
+      WHERE "userId" = $1 AND "checkIn" >= $2
       ORDER BY "checkIn" DESC LIMIT 1
     `;
     const checkResult = await db.query(checkQuery, [userId, startOfDay]);
+    const latestAttendance = checkResult.rows.length > 0 ? checkResult.rows[0] : null;
     
     // 2. Fetch today's schedule
     const d = getLocalTime();
@@ -116,12 +117,12 @@ router.get('/status', async (req, res) => {
     );
 
     // Find the currently active or upcoming booking for today
-    // For simplicity, if they have only one, we return it. If they have multiple, we return the closest one.
     let currentBooking = scheduleResult.rows.length > 0 ? scheduleResult.rows[0] : null;
 
     return res.json({
-      isCheckedIn: checkResult.rows.length > 0,
-      checkInTime: checkResult.rows.length > 0 ? checkResult.rows[0].checkIn : null,
+      isCheckedIn: latestAttendance ? latestAttendance.checkOut === null : false,
+      checkInTime: latestAttendance ? latestAttendance.checkIn : null,
+      todayAttendance: latestAttendance,
       currentBooking
     });
   } catch (error) {
@@ -202,6 +203,7 @@ async function processCheckIn(userId: string, override: boolean, intendedAction?
       status: 200,
       success: true,
       action: 'checkout',
+      attendanceId: existingId,
       message: `✅ Goodbye, ${user.firstName} ${user.lastName}! Have a great day!`
     };
   } else if (checkResult.rows.length > 0 && !isCurrentlyIn && minsSinceOut < 1.5) {
@@ -313,8 +315,8 @@ async function processCheckIn(userId: string, override: boolean, intendedAction?
   // ── End Validation ────────────────────────────────────────────────────────
 
   // Mark new check-in
-  await db.query(
-    `INSERT INTO "Attendance" ("id", "userId", "checkIn") VALUES (gen_random_uuid(), $1, NOW())`,
+  const insertResult = await db.query(
+    `INSERT INTO "Attendance" ("id", "userId", "checkIn") VALUES (gen_random_uuid(), $1, NOW()) RETURNING id`,
     [userId]
   );
 
@@ -322,6 +324,7 @@ async function processCheckIn(userId: string, override: boolean, intendedAction?
     status: 200,
     success: true,
     action: 'checkin',
+    attendanceId: insertResult.rows[0].id,
     overridden: !!override,
     message: `Welcome, ${user.firstName}${override ? ' (Admin Override)' : ''}! 💪`
   };
@@ -444,6 +447,60 @@ router.post('/manual-checkin', async (req, res) => {
   } catch (error) {
     console.error("Error manual checkin:", error);
     return res.status(500).json({ error: "Failed to manually check-in" });
+  }
+});
+
+// GET /api/attendance/live-capacity
+router.get('/live-capacity', async (req, res) => {
+  try {
+    const startOfDay = getLocalTime();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const checkQuery = `
+      SELECT COUNT(*) as count FROM "Attendance"
+      WHERE "checkIn" >= $1 AND "checkOut" IS NULL
+    `;
+    const result = await db.query(checkQuery, [startOfDay]);
+    
+    return res.json({ count: parseInt(result.rows[0].count) });
+  } catch (error) {
+    console.error("Error fetching capacity:", error);
+    return res.status(500).json({ error: "Failed to fetch capacity" });
+  }
+});
+
+// PUT /api/attendance/:id/weight
+router.put('/:id/weight', async (req, res) => {
+  try {
+    const tokenCookie = req.cookies?.auth_token;
+    if (!tokenCookie) return res.status(401).json({ error: "Unauthorized" });
+    const decoded = verifyToken(tokenCookie) as any;
+    if (!decoded || !decoded.id) return res.status(401).json({ error: "Unauthorized" });
+    
+    const { id } = req.params;
+    const { weightIn, weightOut } = req.body;
+
+    let updateFields = [];
+    let values = [id, decoded.id];
+    let valIndex = 3;
+
+    if (weightIn !== undefined) {
+      updateFields.push(`"weightIn" = $${valIndex++}`);
+      values.push(weightIn);
+    }
+    if (weightOut !== undefined) {
+      updateFields.push(`"weightOut" = $${valIndex++}`);
+      values.push(weightOut);
+    }
+
+    if (updateFields.length > 0) {
+      await db.query(`UPDATE "Attendance" SET ${updateFields.join(', ')} WHERE id = $1 AND "userId" = $2`, values);
+    }
+    
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Error updating weight:", error);
+    return res.status(500).json({ error: "Failed to update weight" });
   }
 });
 

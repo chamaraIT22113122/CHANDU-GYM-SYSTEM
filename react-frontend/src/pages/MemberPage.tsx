@@ -64,7 +64,12 @@ export default function MemberPage() {
   const [activeSession, setActiveSession] = useState<any>(null);
   const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null);
   const [isExtending, setIsExtending] = useState(false);
+  const [liveCapacity, setLiveCapacity] = useState<number>(0);
+  
+  // Scanner state
   const [intendedAction, setIntendedAction] = useState<'IN'|'OUT'>('IN');
+  const [weightPrompt, setWeightPrompt] = useState<{type: 'IN'|'OUT', attendanceId: string} | null>(null);
+  const [submittingWeight, setSubmittingWeight] = useState(false);
   const intendedActionRef = useRef<'IN'|'OUT'>('IN');
   
   useEffect(() => {
@@ -261,6 +266,13 @@ export default function MemberPage() {
         playSuccess();
         const action = data.action === 'checkout' ? 'checkout' : 'checkin';
         setScanResult({ type: action, message: data.message });
+        
+        // Wait 1.5 seconds so they see the success message, then ask for weight
+        setTimeout(() => {
+          if (data.attendanceId) {
+            setWeightPrompt({ type: action === 'checkout' ? 'OUT' : 'IN', attendanceId: data.attendanceId });
+          }
+        }, 1500);
       } else {
         playError();
         setScanResult({ type: 'error', message: data.error || 'Scan failed' });
@@ -277,21 +289,50 @@ export default function MemberPage() {
     }
   };
 
-  // Active Session Status Fetching
-  useEffect(() => {
-    if (activeTab === 'pass') {
-      const fetchStatus = async () => {
-        try {
-          const res = await apiFetch('/api/attendance/status');
-          if (res.ok) {
-            setActiveSession(await res.json());
-          }
-        } catch (e) {}
-      };
-      fetchStatus();
-      const interval = setInterval(fetchStatus, 30000); // Check every 30s
-      return () => clearInterval(interval);
+  const submitWeightPrompt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!weightPrompt) return;
+    setSubmittingWeight(true);
+    try {
+      const w = parseFloat(weightInput);
+      if (isNaN(w) || w <= 0) return;
+      const payload = weightPrompt.type === 'IN' ? { weightIn: w } : { weightOut: w };
+      await apiFetch(`/api/attendance/${weightPrompt.attendanceId}/weight`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      // Optionally also push this to the generic metrics table for long-term charts
+      await apiFetch(`/api/members/me/metrics`, {
+        method: 'POST',
+        body: JSON.stringify({ weight: w.toString() })
+      });
+      setWeightPrompt(null);
+      setWeightInput("");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmittingWeight(false);
     }
+  };
+
+  // Active Session and Capacity Status Fetching
+  useEffect(() => {
+    const fetchStatusAndCapacity = async () => {
+      try {
+        if (activeTab === 'pass') {
+          const res = await apiFetch('/api/attendance/status');
+          if (res.ok) setActiveSession(await res.json());
+        }
+        const capRes = await apiFetch('/api/attendance/live-capacity');
+        if (capRes.ok) {
+          const capData = await capRes.json();
+          setLiveCapacity(capData.count);
+        }
+      } catch (e) {}
+    };
+    fetchStatusAndCapacity();
+    const interval = setInterval(fetchStatusAndCapacity, 30000); // Check every 30s
+    return () => clearInterval(interval);
   }, [activeTab]);
 
   // Session Time Remaining Calculation
@@ -574,8 +615,17 @@ export default function MemberPage() {
 
   const targetWeight = member.targetWeight || null;
   
-  // Real Gym Capacity
-  const capacityPct = member.capacityPct || 0;
+  const targetWeight = member.targetWeight || null;
+  
+  // Real Gym Capacity (assuming max 30 people for this small/medium gym)
+  const MAX_CAPACITY = 30;
+  const capacityPct = Math.min(100, Math.round((liveCapacity / MAX_CAPACITY) * 100));
+  
+  // Format metrics for the chart
+  const chartData = (member.metrics || []).map((m: any) => ({
+    date: new Date(m.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    weight: m.weight
+  }));
 
   return (
     <div className="space-y-8 pb-10">
@@ -658,51 +708,87 @@ export default function MemberPage() {
 
       {/* Live Capacity & Progress Banner */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-panel p-5 border-l-4 border-l-blue-500 relative overflow-hidden">
-          <div className="absolute -right-4 -top-4 opacity-10">
-            <Users className="h-24 w-24 text-blue-500" />
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-panel p-6 border-l-4 border-l-blue-500 relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute -right-4 -top-4 opacity-[0.03] pointer-events-none">
+            <Users className="h-32 w-32 text-blue-500" />
           </div>
-          <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
-            <span className="relative flex h-3 w-3">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${capacityPct > 80 ? 'bg-red-400' : capacityPct > 50 ? 'bg-orange-400' : 'bg-emerald-400'}`}></span>
-              <span className={`relative inline-flex rounded-full h-3 w-3 ${capacityPct > 80 ? 'bg-red-500' : capacityPct > 50 ? 'bg-orange-500' : 'bg-emerald-500'}`}></span>
-            </span>
-            Live Gym Capacity
-          </h3>
-          <div className="flex items-end justify-between mb-2">
-            <div>
-              <p className="text-2xl font-bold text-white">{capacityPct}% Full</p>
-              <p className={`text-xs mt-1 ${capacityPct > 80 ? 'text-red-400' : capacityPct > 50 ? 'text-orange-400' : 'text-emerald-400'}`}>
-                {capacityPct > 80 ? 'Very Busy right now' : capacityPct > 50 ? 'Moderately Busy' : 'Quiet right now'}
-              </p>
+          <div>
+            <h3 className="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${capacityPct > 80 ? 'bg-red-400' : capacityPct > 50 ? 'bg-orange-400' : 'bg-emerald-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-3 w-3 ${capacityPct > 80 ? 'bg-red-500' : capacityPct > 50 ? 'bg-orange-500' : 'bg-emerald-500'}`}></span>
+              </span>
+              Live Gym Capacity
+            </h3>
+            <div className="flex items-end justify-between mb-4">
+              <div>
+                <p className="text-4xl font-black text-white tracking-tighter">
+                  {liveCapacity} <span className="text-lg font-medium text-gray-500 tracking-normal">/ {MAX_CAPACITY} members</span>
+                </p>
+                <p className={`text-sm font-bold mt-2 ${capacityPct > 80 ? 'text-red-400' : capacityPct > 50 ? 'text-orange-400' : 'text-emerald-400'}`}>
+                  {capacityPct > 80 ? 'Very Busy — Expect wait times' : capacityPct > 50 ? 'Moderately Busy' : 'Quiet — Great time for a workout!'}
+                </p>
+              </div>
             </div>
           </div>
-          <div className="w-full bg-black/40 rounded-full h-2 mt-2">
-            <div className={`h-2 rounded-full transition-all duration-1000 ${capacityPct > 80 ? 'bg-red-500' : capacityPct > 50 ? 'bg-orange-500' : 'bg-emerald-500'}`} style={{ width: `${capacityPct}%` }}></div>
+          <div className="w-full bg-black/40 rounded-full h-3">
+            <div className={`h-3 rounded-full transition-all duration-1000 ${capacityPct > 80 ? 'bg-red-500' : capacityPct > 50 ? 'bg-orange-500' : 'bg-emerald-500'}`} style={{ width: `${capacityPct}%` }}></div>
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-panel p-5 border-l-4 border-l-emerald-500">
-          <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-panel p-6 border-l-4 border-l-emerald-500 flex flex-col justify-between">
+          <h3 className="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
             <TrendingDown className="h-4 w-4 text-emerald-500" />
             Weight Goal Progress
           </h3>
-          <div className="flex items-end gap-6">
+          <div className="flex items-end justify-between mb-2">
             <div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider block">Current</span>
-              <p className="text-2xl font-bold text-white">{currentWeight} <span className="text-sm font-normal text-gray-400">kg</span></p>
+              <span className="text-xs text-gray-500 uppercase tracking-wider block font-bold mb-1">Current</span>
+              <p className="text-3xl font-black text-white tracking-tighter">{currentWeight} <span className="text-sm font-medium text-gray-400">kg</span></p>
             </div>
-            <div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider block">Target</span>
-              <p className="text-lg font-semibold text-gray-300">{targetWeight} <span className="text-xs font-normal text-gray-500">kg</span></p>
+            <div className="text-center">
+              <span className="text-xs text-gray-500 uppercase tracking-wider block font-bold mb-1">Target</span>
+              <p className="text-xl font-bold text-gray-300 tracking-tighter">{targetWeight || '--'} <span className="text-xs font-medium text-gray-500">kg</span></p>
             </div>
-            <div className="ml-auto text-right">
-              <span className="text-[10px] text-emerald-500/70 uppercase tracking-wider block">Lost So Far</span>
-              <p className="text-lg font-bold text-emerald-500">-{weightLost.toFixed(1)} <span className="text-xs font-normal text-emerald-500/70">kg</span></p>
+            <div className="text-right">
+              <span className="text-xs text-emerald-500/70 uppercase tracking-wider block font-bold mb-1">Lost So Far</span>
+              <p className="text-2xl font-black text-emerald-500 tracking-tighter">-{weightLost.toFixed(1)} <span className="text-xs font-medium text-emerald-500/70">kg</span></p>
             </div>
           </div>
         </motion.div>
       </div>
+
+      {/* Analytics Chart */}
+      {chartData.length > 1 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-panel p-6 border border-white/5">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <ActivitySquare className="h-5 w-5 text-gym-primary" />
+              Weight History
+            </h3>
+          </div>
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorWeight" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ccff00" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#ccff00" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                <YAxis domain={['dataMin - 2', 'dataMax + 2']} stroke="rgba(255,255,255,0.3)" fontSize={12} tickLine={false} axisLine={false} dx={-10} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: 'rgba(10,10,10,0.9)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px', padding: '12px' }}
+                  itemStyle={{ color: '#ccff00', fontWeight: 'bold' }}
+                />
+                <Area type="monotone" dataKey="weight" stroke="#ccff00" strokeWidth={3} fillOpacity={1} fill="url(#colorWeight)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+      )}
       </div>
       )}
 
@@ -1330,6 +1416,71 @@ export default function MemberPage() {
           </div>
         </div>
       )}
+
+      {/* Weight Prompt Modal */}
+      <AnimatePresence>
+        {weightPrompt && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="glass-panel w-full max-w-sm bg-gym-card relative z-10 p-6 border-t-4 border-gym-primary"
+            >
+              <div className="text-center mb-6">
+                <div className="mx-auto w-16 h-16 bg-gym-primary/20 rounded-full flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(204,255,0,0.2)]">
+                  <Scale className="h-8 w-8 text-gym-primary" />
+                </div>
+                <h2 className="text-2xl font-black text-white tracking-tight">
+                  {weightPrompt.type === 'IN' ? 'Check-In Weight' : 'Check-Out Weight'}
+                </h2>
+                <p className="text-gray-400 text-sm mt-2">
+                  {weightPrompt.type === 'IN' 
+                    ? "Let's log your starting weight for today's session."
+                    : "Great workout! What is your check-out weight?"}
+                </p>
+              </div>
+              
+              <form onSubmit={submitWeightPrompt} className="space-y-4">
+                <div>
+                  <div className="relative">
+                    <input 
+                      type="number"
+                      step="0.1"
+                      required
+                      autoFocus
+                      placeholder="e.g. 75.5"
+                      value={weightInput}
+                      onChange={(e) => setWeightInput(e.target.value)}
+                      className="w-full pl-4 pr-12 py-4 text-center text-3xl font-bold border-2 border-white/10 rounded-xl bg-black/50 text-white focus:border-gym-primary focus:ring-0 outline-none transition-all placeholder:text-gray-600 placeholder:font-normal"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">kg</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setWeightPrompt(null)}
+                    className="flex-1 py-3 rounded-xl border border-white/10 text-gray-400 hover:bg-white/5 hover:text-white transition-colors font-bold"
+                  >
+                    Skip
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={submittingWeight || !weightInput}
+                    className="flex-[2] py-3 rounded-xl bg-gym-primary hover:bg-[#a3cc00] text-black font-black flex items-center justify-center transition-colors shadow-lg shadow-gym-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {submittingWeight ? <Loader2 className="h-5 w-5 animate-spin" /> : "Save Weight"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Reschedule Modal */}
       <AnimatePresence>
