@@ -6,6 +6,10 @@
     "dev:backend": "cd express-backend && npm run dev",
     "dev:frontend": "cd react-frontend && npm run dev",
     "start:backend": "cd express-backend && npm run start",
-    "build:frontend": "cd react-frontend && npm run build"
-  }
+    "build": "cd react-frontend && npm run build"
+  },
+  "workspaces": [
+    "react-frontend",
+    "express-backend"
+  ]
 }
