@@ -6,7 +6,7 @@
     "dev:backend": "cd express-backend && npm run dev",
     "dev:frontend": "cd react-frontend && npm run dev",
     "start:backend": "cd express-backend && npm run start",
-    "build": "cd react-frontend && npm run build"
+    "build": "cd react-frontend && npm run build && node -e \"try { require('fs').cpSync('../assets', '../dist/assets', {recursive: true, force: true}) } catch(e) { console.warn('Failed to copy some assets:', e.message) }\""
   },
   "workspaces": [
     "react-frontend",

@@ -28,7 +28,10 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 import path from 'path';
-app.use('/assets', express.static(path.join(__dirname, '../assets')));
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  const assetsDir = path.join(process.cwd(), '..', 'assets');
+  app.use('/assets', express.static(assetsDir));
+}
 
 // Routes
 app.use('/api/auth', authRoutes); 
