@@ -78,9 +78,6 @@ export default function Topbar() {
     <div className="h-20 border-b border-white/5 bg-[#1a1a1a]/50 backdrop-blur-md sticky top-0 z-40 flex items-center justify-between px-4 md:px-8">
       
       <div className="flex items-center gap-4">
-        <button className="md:hidden text-gray-400 hover:text-white transition-colors">
-          <Menu className="h-6 w-6" />
-        </button>
         <div className="relative hidden sm:block">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-4 w-4 text-gray-500" />

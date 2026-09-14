@@ -280,8 +280,8 @@ export default function AdminMembersPage() {
             <Loader2 className="h-8 w-8 text-gym-primary animate-spin" />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-400">
+          <div className="overflow-x-auto pb-4">
+            <table className="w-full min-w-[800px] text-left text-sm text-gray-400">
               <thead className="text-xs uppercase bg-black/20 text-gray-500 border-b border-white/5">
                 <tr>
                   <th scope="col" className="px-6 py-4">Member</th>

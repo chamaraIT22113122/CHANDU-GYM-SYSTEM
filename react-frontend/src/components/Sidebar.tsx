@@ -15,7 +15,7 @@ import {
   Scan
 } from "lucide-react";
 
-const allAdminLinks = [
+export const allAdminLinks = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard, roles: ["ADMIN", "INSTRUCTOR"] },
   { name: "Members", href: "/admin/members", icon: Users, roles: ["ADMIN", "INSTRUCTOR"] },
   { name: "Instructors", href: "/admin/instructors", icon: UserCheck, roles: ["ADMIN"] },

@@ -3,16 +3,22 @@ import { apiFetch } from "../lib/api";
 
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LogOut, Bell, User, Settings, ChevronDown } from "lucide-react";
+import { LogOut, Bell, User, Settings, ChevronDown, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const navItems: any[] = [];
+const navItems = [
+  { name: "Home", href: "/member#overview" },
+  { name: "Workout", href: "/member#schedule" },
+  { name: "Diet", href: "/member#diet" },
+  { name: "Payments", href: "/member#payments" },
+];
 
 export default function MemberTopNav() {
   const location = useLocation();
   const pathname = location.pathname;
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -80,10 +86,16 @@ export default function MemberTopNav() {
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
-    <div className="sticky top-0 z-40 bg-gym-dark/80 backdrop-blur-xl border-b border-white/5">
-      <div className="max-w-5xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-3">
+    <>
+      <div className="sticky top-0 z-40 bg-gym-dark/80 backdrop-blur-xl border-b border-white/5">
+        <div className="max-w-5xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-4 md:gap-8">
+            <div className="md:hidden flex items-center">
+              <button onClick={() => setIsMobileMenuOpen(true)} className="text-gray-400 hover:text-white p-1">
+                <Menu className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full overflow-hidden border border-gym-primary/50 bg-white/5 p-0.5">
               <img 
                 src="/logo.jpg" 
@@ -207,8 +219,44 @@ export default function MemberTopNav() {
               </div>
             )}
           </div>
+          </div>
         </div>
       </div>
-    </div>
+
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 md:hidden"
+            />
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed top-0 left-0 h-full w-[280px] bg-gym-dark border-r border-white/10 z-50 flex flex-col shadow-2xl md:hidden"
+            >
+              <div className="h-16 flex items-center justify-between px-6 border-b border-white/5">
+                <span className="font-bold text-white tracking-wider text-lg">MENU</span>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-400 hover:text-white p-2">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="flex flex-col p-6 gap-6">
+                {navItems.map(item => (
+                  <Link key={item.name} to={item.href} onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-400 hover:text-white transition-colors">
+                    {item.name}
+                  </Link>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

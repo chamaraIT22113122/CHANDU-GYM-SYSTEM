@@ -2,6 +2,7 @@ import { useLocation, Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
+import AdminBottomNav from "../components/AdminBottomNav";
 import { apiFetch } from "../lib/api";
 
 export default function AdminLayout() {
@@ -39,14 +40,15 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="flex h-screen bg-[#111] overflow-hidden">
+    <div className="flex h-screen bg-[#111] overflow-hidden relative">
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Topbar />
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
           <Outlet />
         </main>
       </div>
+      <AdminBottomNav />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { apiFetch } from "../lib/api";
 import { Link } from "react-router-dom";
-import { ArrowRight, Play, CheckCircle, Users, Star, Dumbbell, Flame, Zap, Check } from "lucide-react";
+import { ArrowRight, Play, CheckCircle, Users, Star, Dumbbell, Flame, Zap, Check, MapPin, Phone, Mail } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import PublicNavbar from "../components/PublicNavbar";
@@ -220,6 +220,69 @@ export default function HomePage() {
               ))}
             </div>
           )}
+        </div>
+      </section>
+
+      {/* CONTACT SECTION */}
+      <section id="contact" className="py-24 px-6 bg-[#111] relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#ccff00]/10 blur-[100px] rounded-full pointer-events-none" />
+        
+        <div className="max-w-7xl mx-auto relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12">
+          <div>
+            <h2 className="text-3xl sm:text-5xl font-black uppercase tracking-tight mb-4">Get In Touch</h2>
+            <p className="text-gray-400 mb-8 max-w-md">Have questions about our plans, personal training, or facilities? Contact us today and we'll be happy to help you start your fitness journey.</p>
+            
+            <div className="space-y-6">
+              <div className="flex items-start gap-4">
+                <div className="h-12 w-12 bg-[#ccff00]/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <MapPin className="h-6 w-6 text-[#ccff00]" />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold text-lg mb-1">Location</h4>
+                  <p className="text-gray-400">123 Fitness Avenue, Muscle City, MC 45678</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="h-12 w-12 bg-[#ccff00]/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Phone className="h-6 w-6 text-[#ccff00]" />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold text-lg mb-1">Phone</h4>
+                  <p className="text-gray-400">+94 77 123 4567</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="h-12 w-12 bg-[#ccff00]/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Mail className="h-6 w-6 text-[#ccff00]" />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold text-lg mb-1">Email</h4>
+                  <p className="text-gray-400">contact@chandugym.com</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/5">
+            <h3 className="text-xl font-bold text-white mb-6">Send us a message</h3>
+            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Name</label>
+                <input type="text" className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#ccff00]/50 text-white" placeholder="Your Name" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Email</label>
+                <input type="email" className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#ccff00]/50 text-white" placeholder="Your Email" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Message</label>
+                <textarea rows={4} className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#ccff00]/50 text-white resize-none" placeholder="How can we help?"></textarea>
+              </div>
+              <button type="submit" className="w-full bg-[#ccff00] text-black font-bold py-3 rounded-xl hover:bg-[#b3e600] transition-colors mt-2">
+                Send Message
+              </button>
+            </form>
+          </div>
         </div>
       </section>
 
