@@ -6,10 +6,15 @@ import jwt from 'jsonwebtoken';
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_chandu_gym_key_change_in_production";
 
+// Helper to get current date in the gym's local time (Sri Lanka / Asia/Colombo)
+function getLocalTime() {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Colombo" }));
+}
+
 // GET /api/attendance - Today's attendance records
 router.get('/', async (req, res) => {
   try {
-    const today = new Date();
+    const today = getLocalTime();
     today.setHours(0, 0, 0, 0);
 
     const query = `
@@ -52,7 +57,7 @@ router.get('/token', async (req, res) => {
     const userId = decoded.id;
 
     // Verify if the user has a schedule for today
-    const d = new Date();
+    const d = getLocalTime();
     const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
     const bookingResult = await db.query(
@@ -69,7 +74,7 @@ router.get('/token', async (req, res) => {
 
     // Generate a QR code token valid for 90 seconds (refreshed every 60s on frontend)
     const qrToken = jwt.sign(
-      { type: 'attendance_qr', userId, date: new Date().toISOString().split('T')[0] },
+      { type: 'attendance_qr', userId, date: getLocalTime().toISOString().split('T')[0] },
       JWT_SECRET,
       { expiresIn: '90s' }
     );
@@ -95,7 +100,7 @@ async function processCheckIn(userId: string, override: boolean) {
 
   // ── Schedule Validation ──────────────────────────────────────────────────
   if (!override) {
-    const d = new Date();
+    const d = getLocalTime();
     const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     
     const scheduleResult = await db.query(
@@ -162,7 +167,7 @@ async function processCheckIn(userId: string, override: boolean) {
 
     const membership = membershipResult.rows[0];
     const endDate = new Date(membership.endDate);
-    const now = new Date();
+    const now = getLocalTime();
 
     if (endDate < now) {
       return {
@@ -191,7 +196,7 @@ async function processCheckIn(userId: string, override: boolean) {
   // ── End Validation ────────────────────────────────────────────────────────
 
   // Check if member already has a check-in today (for check-out logic)
-  const startOfDay = new Date();
+  const startOfDay = getLocalTime();
   startOfDay.setHours(0, 0, 0, 0);
 
   const checkQuery = `
@@ -253,7 +258,7 @@ router.post('/scan', async (req, res) => {
     }
 
     const { userId, date } = decoded;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalTime().toISOString().split('T')[0];
 
     if (date !== today) {
       return res.status(400).json({ error: "QR code is not valid for today" });
