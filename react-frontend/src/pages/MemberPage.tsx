@@ -307,6 +307,25 @@ export default function MemberPage() {
         method: 'POST',
         body: JSON.stringify({ weight: w.toString() })
       });
+
+      // Auto-complete the workout if checking out
+      if (weightPrompt.type === 'OUT') {
+        try {
+          // Fire and forget save workout using current sets
+          apiFetch(`/api/members/me/workout-history`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              date: selectedDateStr,
+              dayName: selectedDateStr,
+              completedSets
+            })
+          });
+        } catch (e) {
+          console.error("Failed to auto-save workout", e);
+        }
+      }
+
       setWeightPrompt(null);
       setWeightInput("");
     } catch (err) {
