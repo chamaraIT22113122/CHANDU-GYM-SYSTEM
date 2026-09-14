@@ -163,4 +163,59 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// PATCH /api/bookings/:id/extend - Extend an active booking by 30 mins
+router.patch('/:id/extend', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Fetch current booking
+    const bookingResult = await db.query(`SELECT * FROM "Booking" WHERE id = $1`, [id]);
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+    const booking = bookingResult.rows[0];
+
+    // Calculate new end time (+30 minutes)
+    const [endHour, endMin] = booking.endTime.split(':').map(Number);
+    let newEndHour = endHour;
+    let newEndMin = endMin + 30;
+    if (newEndMin >= 60) {
+      newEndHour += 1;
+      newEndMin -= 60;
+    }
+    const newEndTimeStr = `${String(newEndHour).padStart(2, '0')}:${String(newEndMin).padStart(2, '0')}`;
+
+    // Optional: Check if extending crosses midnight or closing time, but assuming 24h format.
+
+    // Fetch dynamic capacity
+    const capacityResult = await db.query(`SELECT value FROM "SystemSetting" WHERE key = 'max_capacity'`);
+    const capacitySetting = capacityResult.rows[0];
+    const maxCapacity = capacitySetting ? parseInt(capacitySetting.value, 10) : 20;
+
+    // Check capacity for the newly extended timeslot (using the original end time as the start of the extension block)
+    const existingBookingsResult = await db.query(`
+      SELECT COUNT(*) as count 
+      FROM "Booking" 
+      WHERE "bookingDate" = $1 
+      AND "startTime" < $3 AND "endTime" > $2 
+      AND status = 'SCHEDULED'
+    `, [booking.bookingDate, booking.endTime, newEndTimeStr]);
+    
+    const existingBookings = parseInt(existingBookingsResult.rows[0].count, 10);
+
+    // Subtract 1 because their own booking might overlap if we don't exclude it, but here we are checking the new block
+    if (existingBookings >= maxCapacity) {
+      return res.status(400).json({ error: `Cannot extend. The gym is at maximum capacity (${maxCapacity}) for the next 30 minutes.` });
+    }
+
+    // Update the booking
+    await db.query(`UPDATE "Booking" SET "endTime" = $1, "updatedAt" = NOW() WHERE id = $2`, [newEndTimeStr, id]);
+
+    return res.json({ success: true, newEndTime: newEndTimeStr });
+  } catch (error) {
+    console.error("Failed to extend booking:", error);
+    return res.status(500).json({ error: "Failed to extend booking" });
+  }
+});
+
 export default router;

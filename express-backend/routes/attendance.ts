@@ -86,6 +86,50 @@ router.get('/token', async (req, res) => {
   }
 });
 
+// GET /api/attendance/status - Check if member is currently checked in and get current booking
+router.get('/status', async (req, res) => {
+  try {
+    const tokenCookie = req.cookies?.auth_token;
+    if (!tokenCookie) return res.status(401).json({ error: "Unauthorized" });
+    const decoded = verifyToken(tokenCookie) as any;
+    if (!decoded || !decoded.id) return res.status(401).json({ error: "Unauthorized" });
+    const userId = decoded.id;
+
+    const startOfDay = getLocalTime();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    // 1. Check if they are currently checked in (no checkout)
+    const checkQuery = `
+      SELECT "checkIn" FROM "Attendance"
+      WHERE "userId" = $1 AND "checkIn" >= $2 AND "checkOut" IS NULL
+      ORDER BY "checkIn" DESC LIMIT 1
+    `;
+    const checkResult = await db.query(checkQuery, [userId, startOfDay]);
+    
+    // 2. Fetch today's schedule
+    const d = getLocalTime();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
+    const scheduleResult = await db.query(
+      `SELECT id, "startTime", "endTime", "dayOfWeek" FROM "Booking" WHERE "userId" = $1 AND "bookingDate" = $2 AND status = 'SCHEDULED'`,
+      [userId, todayStr]
+    );
+
+    // Find the currently active or upcoming booking for today
+    // For simplicity, if they have only one, we return it. If they have multiple, we return the closest one.
+    let currentBooking = scheduleResult.rows.length > 0 ? scheduleResult.rows[0] : null;
+
+    return res.json({
+      isCheckedIn: checkResult.rows.length > 0,
+      checkInTime: checkResult.rows.length > 0 ? checkResult.rows[0].checkIn : null,
+      currentBooking
+    });
+  } catch (error) {
+    console.error("Error fetching attendance status:", error);
+    return res.status(500).json({ error: "Failed to fetch status" });
+  }
+});
+
 // Helper for processing check-in logic
 async function processCheckIn(userId: string, override: boolean) {
   // Verify user exists

@@ -59,6 +59,11 @@ export default function MemberPage() {
   const [scanResult, setScanResult] = useState<ScanResult>({ type: null, message: '' });
   const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<any>(null);
+
+  // Active Session Tracking
+  const [activeSession, setActiveSession] = useState<any>(null);
+  const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null);
+  const [isExtending, setIsExtending] = useState(false);
   
   // Date State for Workout & Diet
   const [selectedDateStr, setSelectedDateStr] = useState<string>(() => {
@@ -263,6 +268,60 @@ export default function MemberPage() {
         setScanResult({ type: null, message: '' });
         if (scannerRef.current) { try { scannerRef.current.resume(); } catch {} }
       }, 3500);
+    }
+  };
+
+  // Active Session Status Fetching
+  useEffect(() => {
+    if (activeTab === 'pass') {
+      const fetchStatus = async () => {
+        try {
+          const res = await apiFetch('/api/attendance/status');
+          if (res.ok) {
+            setActiveSession(await res.json());
+          }
+        } catch (e) {}
+      };
+      fetchStatus();
+      const interval = setInterval(fetchStatus, 30000); // Check every 30s
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
+
+  // Session Time Remaining Calculation
+  useEffect(() => {
+    if (!activeSession?.isCheckedIn || !activeSession?.currentBooking) return;
+    
+    const updateRemaining = () => {
+      const [endHour, endMin] = activeSession.currentBooking.endTime.split(':').map(Number);
+      const now = new Date();
+      const endMins = endHour * 60 + endMin;
+      const currentMins = now.getHours() * 60 + now.getMinutes();
+      setSessionTimeRemaining(endMins - currentMins);
+    };
+    
+    updateRemaining();
+    const interval = setInterval(updateRemaining, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, [activeSession]);
+
+  const handleExtendSession = async () => {
+    if (!activeSession?.currentBooking || isExtending) return;
+    setIsExtending(true);
+    try {
+      const res = await apiFetch(`/api/bookings/${activeSession.currentBooking.id}/extend`, { method: 'PATCH' });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Session extended successfully by 30 minutes!");
+        const statusRes = await apiFetch('/api/attendance/status');
+        if (statusRes.ok) setActiveSession(await statusRes.json());
+      } else {
+        alert(data.error || "Failed to extend session.");
+      }
+    } catch (e) {
+      alert("Network error.");
+    } finally {
+      setIsExtending(false);
     }
   };
   // ──────────────────────────────────────────────────────────────────────────
@@ -1127,6 +1186,54 @@ export default function MemberPage() {
             </h1>
             <p className="text-gray-400 mt-1 text-sm">Point your camera at the gym's kiosk screen.</p>
           </div>
+
+          {/* ACTIVE SESSION BANNER */}
+          {activeSession?.isCheckedIn && activeSession.currentBooking && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+              className={`w-full max-w-sm p-5 mb-4 rounded-2xl border ${
+                (sessionTimeRemaining !== null && sessionTimeRemaining <= 30) 
+                  ? 'bg-orange-500/10 border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.2)]'
+                  : 'bg-gym-primary/10 border-gym-primary/30'
+              }`}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <h3 className={`font-bold text-lg flex items-center gap-2 ${
+                    (sessionTimeRemaining !== null && sessionTimeRemaining <= 30) ? 'text-orange-400' : 'text-gym-primary'
+                  }`}>
+                    <Activity className="h-5 w-5" /> 
+                    Active Session
+                  </h3>
+                  <p className="text-gray-300 text-sm mt-1">
+                    Scheduled until <strong className="text-white">{activeSession.currentBooking.endTime}</strong>
+                  </p>
+                </div>
+                {sessionTimeRemaining !== null && (
+                  <div className={`px-3 py-1.5 rounded-lg text-sm font-bold ${
+                    sessionTimeRemaining <= 30 ? 'bg-orange-500/20 text-orange-400' : 'bg-gym-primary/20 text-gym-primary'
+                  }`}>
+                    {sessionTimeRemaining > 0 ? `${sessionTimeRemaining} mins left` : 'Ended'}
+                  </div>
+                )}
+              </div>
+              
+              {(sessionTimeRemaining !== null && sessionTimeRemaining <= 30) && (
+                <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
+                  <p className="text-xs text-orange-400/80 pr-4">
+                    Your session is ending soon. Do you need more time?
+                  </p>
+                  <button 
+                    onClick={handleExtendSession}
+                    disabled={isExtending}
+                    className="bg-orange-500 text-black text-xs font-bold px-4 py-2 rounded-lg whitespace-nowrap hover:bg-orange-400 transition-colors disabled:opacity-50"
+                  >
+                    {isExtending ? 'Wait...' : '+30 Mins'}
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          )}
 
           <div className="w-full max-w-sm bg-[#141414] border border-white/10 rounded-3xl overflow-hidden shadow-2xl shadow-black/50 p-6 flex flex-col items-center justify-center relative">
             
