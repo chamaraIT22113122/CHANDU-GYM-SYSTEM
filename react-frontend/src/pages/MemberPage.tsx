@@ -65,6 +65,11 @@ export default function MemberPage() {
   const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null);
   const [isExtending, setIsExtending] = useState(false);
   const [intendedAction, setIntendedAction] = useState<'IN'|'OUT'>('IN');
+  const intendedActionRef = useRef<'IN'|'OUT'>('IN');
+  
+  useEffect(() => {
+    intendedActionRef.current = intendedAction;
+  }, [intendedAction]);
   
   // Date State for Workout & Diet
   const [selectedDateStr, setSelectedDateStr] = useState<string>(() => {
@@ -248,7 +253,7 @@ export default function MemberPage() {
     try {
       const res = await apiFetch('/api/attendance/scan-kiosk', {
         method: 'POST',
-        body: JSON.stringify({ token, action: intendedAction })
+        body: JSON.stringify({ token, action: intendedActionRef.current })
       });
       const data = await res.json();
       
