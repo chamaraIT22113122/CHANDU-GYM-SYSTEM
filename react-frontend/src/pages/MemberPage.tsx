@@ -65,6 +65,7 @@ export default function MemberPage() {
   const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null);
   const [isExtending, setIsExtending] = useState(false);
   const [liveCapacity, setLiveCapacity] = useState<number>(0);
+  const [maxCapacity, setMaxCapacity] = useState<number>(30);
   
   // Scanner state
   const [intendedAction, setIntendedAction] = useState<'IN'|'OUT'>('IN');
@@ -322,10 +323,21 @@ export default function MemberPage() {
         // Always fetch activeSession because it's needed in Pass and Schedule tabs
         const res = await apiFetch('/api/attendance/status');
         if (res.ok) setActiveSession(await res.json());
-        const capRes = await apiFetch('/api/attendance/live-capacity');
+        
+        const [capRes, settingsRes] = await Promise.all([
+          apiFetch('/api/attendance/live-capacity'),
+          apiFetch('/api/settings')
+        ]);
+        
         if (capRes.ok) {
           const capData = await capRes.json();
           setLiveCapacity(capData.count);
+        }
+        if (settingsRes.ok) {
+          const settingsData = await settingsRes.json();
+          if (settingsData.max_capacity) {
+            setMaxCapacity(parseInt(settingsData.max_capacity) || 30);
+          }
         }
       } catch (e) {}
     };
@@ -616,8 +628,7 @@ export default function MemberPage() {
   
   // Format dates to match selectedDateStr format (YYYY-MM-DD)
   const todayStr = new Date().toISOString().split('T')[0];
-  const MAX_CAPACITY = 30;
-  const capacityPct = Math.min(100, Math.round((liveCapacity / MAX_CAPACITY) * 100));
+  const capacityPct = Math.min(100, Math.round((liveCapacity / maxCapacity) * 100));
   
   // Format metrics for the chart
   const chartData = (member.metrics || []).map((m: any) => ({
@@ -721,7 +732,7 @@ export default function MemberPage() {
             <div className="flex items-end justify-between mb-4">
               <div>
                 <p className="text-4xl font-black text-white tracking-tighter">
-                  {liveCapacity} <span className="text-lg font-medium text-gray-500 tracking-normal">/ {MAX_CAPACITY} members</span>
+                  {liveCapacity} <span className="text-lg font-medium text-gray-500 tracking-normal">/ {maxCapacity} members</span>
                 </p>
                 <p className={`text-sm font-bold mt-2 ${capacityPct > 80 ? 'text-red-400' : capacityPct > 50 ? 'text-orange-400' : 'text-emerald-400'}`}>
                   {capacityPct > 80 ? 'Very Busy — Expect wait times' : capacityPct > 50 ? 'Moderately Busy' : 'Quiet — Great time for a workout!'}
