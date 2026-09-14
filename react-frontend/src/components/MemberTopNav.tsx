@@ -223,40 +223,42 @@ export default function MemberTopNav() {
         </div>
       </div>
 
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 md:hidden"
-            />
-            <motion.div
-              initial={{ x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-0 left-0 h-full w-[280px] bg-gym-dark border-r border-white/10 z-50 flex flex-col shadow-2xl md:hidden"
-            >
-              <div className="h-16 flex items-center justify-between px-6 border-b border-white/5">
-                <span className="font-bold text-white tracking-wider text-lg">MENU</span>
-                <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-400 hover:text-white p-2">
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-              <div className="flex flex-col p-6 gap-6">
-                {navItems.map(item => (
-                  <Link key={item.name} to={item.href} onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-400 hover:text-white transition-colors">
-                    {item.name}
-                  </Link>
-                ))}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {isMobileMenuOpen && (
+        <div className="md:hidden">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          
+          {/* Sidebar */}
+          <div 
+            className="fixed top-0 left-0 h-full w-[280px] bg-gym-dark border-r border-white/10 z-50 flex flex-col shadow-2xl animate-in slide-in-from-left duration-300"
+          >
+            <div className="h-16 flex items-center justify-between px-6 border-b border-white/5">
+              <span className="font-bold text-white tracking-wider text-lg">MENU</span>
+              <button 
+                onClick={() => setIsMobileMenuOpen(false)} 
+                className="text-gray-400 hover:text-white p-2 focus:outline-none"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="flex flex-col p-6 gap-6">
+              {navItems.map(item => (
+                <Link 
+                  key={item.name} 
+                  to={item.href} 
+                  onClick={() => setIsMobileMenuOpen(false)} 
+                  className="text-lg font-medium text-gray-400 hover:text-white transition-colors"
+                >
+                  {item.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
