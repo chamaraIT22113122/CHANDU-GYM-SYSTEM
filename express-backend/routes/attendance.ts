@@ -105,7 +105,12 @@ async function processCheckIn(userId: string, override: boolean) {
   startOfDay.setHours(0, 0, 0, 0);
 
   const checkQuery = `
-    SELECT id, "checkOut" FROM "Attendance"
+    SELECT 
+      id, 
+      "checkOut",
+      EXTRACT(EPOCH FROM (NOW() - "checkIn"))/60 AS "minsSinceIn",
+      EXTRACT(EPOCH FROM (NOW() - "checkOut"))/60 AS "minsSinceOut"
+    FROM "Attendance"
     WHERE "userId" = $1 AND "checkIn" >= $2
     ORDER BY "checkIn" DESC
     LIMIT 1
@@ -117,6 +122,16 @@ async function processCheckIn(userId: string, override: boolean) {
     
     // If already checked in but not checked out, mark check-out
     if (!existing.checkOut) {
+      // Prevent accidental double-scan right after checking in
+      if (existing.minsSinceIn < 1.5) {
+        return {
+          status: 429,
+          error: `You just checked in! Please wait a moment.`,
+          requiresOverride: false,
+          memberName: `${user.firstName} ${user.lastName}`
+        };
+      }
+
       await db.query(
         `UPDATE "Attendance" SET "checkOut" = NOW() WHERE id = $1`,
         [existing.id]
@@ -127,6 +142,17 @@ async function processCheckIn(userId: string, override: boolean) {
         action: 'checkout',
         message: `✅ Goodbye, ${user.firstName} ${user.lastName}! Have a great day!`
       };
+    } else {
+      // They are fully checked out, and trying to check in again.
+      // Prevent accidental double-scan right after checking out
+      if (existing.minsSinceOut < 1.5) {
+        return {
+          status: 429,
+          error: `You just checked out! Please wait a moment before checking in again.`,
+          requiresOverride: false,
+          memberName: `${user.firstName} ${user.lastName}`
+        };
+      }
     }
   }
 
