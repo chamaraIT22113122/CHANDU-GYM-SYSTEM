@@ -98,7 +98,9 @@ async function processCheckIn(userId: string, override: boolean) {
   }
   const user = userResult.rows[0];
 
-  // ── Check-Out Logic (Must happen FIRST) ──────────────────────────────────
+  // ── 1. Check for Check-out FIRST ─────────────────────────────────────────
+  // If member is already checked in, scanning again means they are leaving.
+  // We don't enforce schedule or payment blocks on checkout.
   const startOfDay = getLocalTime();
   startOfDay.setHours(0, 0, 0, 0);
 
@@ -113,7 +115,7 @@ async function processCheckIn(userId: string, override: boolean) {
   if (checkResult.rows.length > 0) {
     const existing = checkResult.rows[0];
     
-    // If already checked in but not checked out, mark check-out and bypass all other validations
+    // If already checked in but not checked out, mark check-out
     if (!existing.checkOut) {
       await db.query(
         `UPDATE "Attendance" SET "checkOut" = NOW() WHERE id = $1`,
@@ -127,9 +129,8 @@ async function processCheckIn(userId: string, override: boolean) {
       };
     }
   }
-  // ── End Check-Out Logic ──────────────────────────────────────────────────
 
-  // ── Schedule Validation (For Check-Ins Only) ─────────────────────────────
+  // ── 2. Schedule Validation ──────────────────────────────────────────────────
   if (!override) {
     const d = getLocalTime();
     const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -179,7 +180,7 @@ async function processCheckIn(userId: string, override: boolean) {
   }
   // ── End Schedule Validation ──────────────────────────────────────────────
 
-  // ── Membership & Payment Validation (For Check-Ins Only) ────────────────
+  // ── Membership & Payment Validation ──────────────────────────────────────
   if (!override) {
     // 1. Check if member has an active membership
     const membershipResult = await db.query(
