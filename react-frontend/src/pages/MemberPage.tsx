@@ -319,10 +319,9 @@ export default function MemberPage() {
   useEffect(() => {
     const fetchStatusAndCapacity = async () => {
       try {
-        if (activeTab === 'pass') {
-          const res = await apiFetch('/api/attendance/status');
-          if (res.ok) setActiveSession(await res.json());
-        }
+        // Always fetch activeSession because it's needed in Pass and Schedule tabs
+        const res = await apiFetch('/api/attendance/status');
+        if (res.ok) setActiveSession(await res.json());
         const capRes = await apiFetch('/api/attendance/live-capacity');
         if (capRes.ok) {
           const capData = await capRes.json();
@@ -974,16 +973,35 @@ export default function MemberPage() {
                             </div>
                             
                             {/* Check-In / Check-Out Weights */}
-                            {selectedDateStr === todayStr && activeSession?.todayAttendance && (
+                            {selectedDateStr === todayStr && (
                               <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-gym-primary/30 pt-4 md:pt-0 md:pl-4">
-                                <div className="text-center">
-                                  <span className="text-[10px] uppercase font-bold text-gym-primary/70 block">Weight In</span>
-                                  <p className="text-lg font-black text-white">{activeSession.weightIn ? `${activeSession.weightIn} kg` : '--'}</p>
-                                </div>
-                                <div className="text-center">
-                                  <span className="text-[10px] uppercase font-bold text-gym-primary/70 block">Weight Out</span>
-                                  <p className="text-lg font-black text-white">{activeSession.weightOut ? `${activeSession.weightOut} kg` : '--'}</p>
-                                </div>
+                                {activeSession?.todayAttendance ? (
+                                  <>
+                                    <button 
+                                      onClick={() => setWeightPrompt({ type: 'IN', attendanceId: activeSession.todayAttendance.id })}
+                                      className="text-center group hover:bg-white/5 p-2 rounded-xl transition-all min-w-[80px]"
+                                    >
+                                      <span className="text-[10px] uppercase font-bold text-gym-primary/70 block group-hover:text-gym-primary transition-colors">Weight In</span>
+                                      <p className="text-lg font-black text-white group-hover:scale-105 transition-transform">
+                                        {activeSession.todayAttendance.weightIn ? `${activeSession.todayAttendance.weightIn} kg` : <span className="text-gray-500 text-sm font-bold">+ Add</span>}
+                                      </p>
+                                    </button>
+                                    <button 
+                                      onClick={() => setWeightPrompt({ type: 'OUT', attendanceId: activeSession.todayAttendance.id })}
+                                      className="text-center group hover:bg-white/5 p-2 rounded-xl transition-all min-w-[80px]"
+                                    >
+                                      <span className="text-[10px] uppercase font-bold text-gym-primary/70 block group-hover:text-gym-primary transition-colors">Weight Out</span>
+                                      <p className="text-lg font-black text-white group-hover:scale-105 transition-transform">
+                                        {activeSession.todayAttendance.weightOut ? `${activeSession.todayAttendance.weightOut} kg` : <span className="text-gray-500 text-sm font-bold">+ Add</span>}
+                                      </p>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <div className="text-center w-full px-4 py-2 bg-black/40 rounded-lg border border-white/5">
+                                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Weight Tracking</p>
+                                    <p className="text-sm font-medium text-white mt-1">Scan your Check-In QR to unlock</p>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
