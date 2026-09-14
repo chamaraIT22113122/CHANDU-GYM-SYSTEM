@@ -64,6 +64,7 @@ export default function MemberPage() {
   const [activeSession, setActiveSession] = useState<any>(null);
   const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null);
   const [isExtending, setIsExtending] = useState(false);
+  const [intendedAction, setIntendedAction] = useState<'IN'|'OUT'>('IN');
   
   // Date State for Workout & Diet
   const [selectedDateStr, setSelectedDateStr] = useState<string>(() => {
@@ -247,7 +248,7 @@ export default function MemberPage() {
     try {
       const res = await apiFetch('/api/attendance/scan-kiosk', {
         method: 'POST',
-        body: JSON.stringify({ token })
+        body: JSON.stringify({ token, action: intendedAction })
       });
       const data = await res.json();
       
@@ -481,7 +482,6 @@ export default function MemberPage() {
       const payload: any = { weight: parseFloat(weightInput), date: metricDateInput };
       if (bodyFatInput) payload.bodyFat = parseFloat(bodyFatInput);
       if (muscleMassInput) payload.muscleMass = parseFloat(muscleMassInput);
-
       const res = await apiFetch(`/api/members/me/metrics`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1182,9 +1182,33 @@ export default function MemberPage() {
           <div className="text-center mb-4 w-full">
             <h1 className="text-2xl font-black text-white flex items-center justify-center gap-3">
               <Scan className="h-6 w-6 text-gym-primary" />
-              Scan to Enter
+              Scan to {intendedAction === 'IN' ? 'Enter' : 'Exit'}
             </h1>
             <p className="text-gray-400 mt-1 text-sm">Point your camera at the gym's kiosk screen.</p>
+          </div>
+
+          {/* Action Toggle */}
+          <div className="bg-[#141414] p-1 rounded-xl flex items-center mb-2 border border-white/10 w-full max-w-sm">
+            <button
+              onClick={() => setIntendedAction('IN')}
+              className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
+                intendedAction === 'IN' 
+                  ? 'bg-gym-primary text-black shadow-lg shadow-gym-primary/20' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Check-In
+            </button>
+            <button
+              onClick={() => setIntendedAction('OUT')}
+              className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
+                intendedAction === 'OUT' 
+                  ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Check-Out
+            </button>
           </div>
 
           {/* ACTIVE SESSION BANNER */}

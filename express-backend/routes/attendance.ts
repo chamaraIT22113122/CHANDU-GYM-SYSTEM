@@ -131,7 +131,7 @@ router.get('/status', async (req, res) => {
 });
 
 // Helper for processing check-in logic
-async function processCheckIn(userId: string, override: boolean) {
+async function processCheckIn(userId: string, override: boolean, intendedAction?: 'IN' | 'OUT') {
   // Verify user exists
   const userResult = await db.query(
     'SELECT "firstName", "lastName", "membershipId" FROM "User" WHERE id = $1',
@@ -161,43 +161,58 @@ async function processCheckIn(userId: string, override: boolean) {
   `;
   const checkResult = await db.query(checkQuery, [userId, startOfDay]);
 
+  let isCurrentlyIn = false;
+  let existingId = null;
+  let minsSinceIn = 0;
+  let minsSinceOut = 0;
+
   if (checkResult.rows.length > 0) {
     const existing = checkResult.rows[0];
-    
-    // If already checked in but not checked out, mark check-out
     if (!existing.checkOut) {
-      // Prevent accidental double-scan right after checking in
-      if (existing.minsSinceIn < 1.5) {
-        return {
-          status: 429,
-          error: `You just checked in! Please wait a moment.`,
-          requiresOverride: false,
-          memberName: `${user.firstName} ${user.lastName}`
-        };
-      }
-
-      await db.query(
-        `UPDATE "Attendance" SET "checkOut" = NOW() WHERE id = $1`,
-        [existing.id]
-      );
-      return {
-        status: 200,
-        success: true,
-        action: 'checkout',
-        message: `✅ Goodbye, ${user.firstName} ${user.lastName}! Have a great day!`
-      };
+      isCurrentlyIn = true;
+      existingId = existing.id;
+      minsSinceIn = existing.minsSinceIn;
     } else {
-      // They are fully checked out, and trying to check in again.
-      // Prevent accidental double-scan right after checking out
-      if (existing.minsSinceOut < 1.5) {
-        return {
-          status: 429,
-          error: `You just checked out! Please wait a moment before checking in again.`,
-          requiresOverride: false,
-          memberName: `${user.firstName} ${user.lastName}`
-        };
-      }
+      minsSinceOut = existing.minsSinceOut;
     }
+  }
+
+  // Validate Intended Action (if provided)
+  if (intendedAction === 'IN' && isCurrentlyIn) {
+    return { status: 400, error: `You are already checked in!`, requiresOverride: false, memberName: `${user.firstName} ${user.lastName}` };
+  }
+  if (intendedAction === 'OUT' && !isCurrentlyIn) {
+    return { status: 400, error: `You are not checked in yet!`, requiresOverride: false, memberName: `${user.firstName} ${user.lastName}` };
+  }
+
+  // Handle Checkout if they are in (or explicitly requesting OUT, though above check catches if not in)
+  if (isCurrentlyIn || intendedAction === 'OUT') {
+    // Prevent accidental double-scan right after checking in
+    if (minsSinceIn < 1.5) {
+      return {
+        status: 429,
+        error: `You just checked in! Please wait a moment.`,
+        requiresOverride: false,
+        memberName: `${user.firstName} ${user.lastName}`
+      };
+    }
+
+    await db.query(`UPDATE "Attendance" SET "checkOut" = NOW() WHERE id = $1`, [existingId]);
+    return {
+      status: 200,
+      success: true,
+      action: 'checkout',
+      message: `✅ Goodbye, ${user.firstName} ${user.lastName}! Have a great day!`
+    };
+  } else if (checkResult.rows.length > 0 && !isCurrentlyIn && minsSinceOut < 1.5) {
+    // They are fully checked out, and trying to check in again.
+    // Prevent accidental double-scan right after checking out
+    return {
+      status: 429,
+      error: `You just checked out! Please wait a moment before checking in again.`,
+      requiresOverride: false,
+      memberName: `${user.firstName} ${user.lastName}`
+    };
   }
 
   // ── 2. Schedule Validation ──────────────────────────────────────────────────
@@ -375,7 +390,7 @@ router.get('/kiosk-token', async (req, res) => {
 // POST /api/attendance/scan-kiosk - Member scans the kiosk token
 router.post('/scan-kiosk', async (req, res) => {
   try {
-    const { token } = req.body;
+    const { token, action } = req.body;
     if (!token) return res.status(400).json({ error: "Missing kiosk QR token" });
 
     // Identify member scanning the token
@@ -398,7 +413,7 @@ router.post('/scan-kiosk', async (req, res) => {
     }
 
     // Process check-in for the member
-    const result = await processCheckIn(userId, false); // No override from member phone
+    const result = await processCheckIn(userId, false, action); // No override from member phone
     if (result.status !== 200) {
       return res.status(result.status).json(result);
     }
