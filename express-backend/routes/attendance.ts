@@ -132,7 +132,7 @@ router.get('/status', async (req, res) => {
 });
 
 // Helper for processing check-in logic
-async function processCheckIn(userId: string, override: boolean, intendedAction?: 'IN' | 'OUT') {
+async function processCheckIn(userId: string, override: boolean, intendedAction?: 'IN' | 'OUT', checkoutReason?: string) {
   // Verify user exists
   const userResult = await db.query(
     'SELECT "firstName", "lastName", "membershipId" FROM "User" WHERE id = $1',
@@ -198,7 +198,12 @@ async function processCheckIn(userId: string, override: boolean, intendedAction?
       };
     }
 
-    await db.query(`UPDATE "Attendance" SET "checkOut" = NOW() WHERE id = $1`, [existingId]);
+    if (checkoutReason) {
+      await db.query(`UPDATE "Attendance" SET "checkOut" = NOW(), "checkoutReason" = $2 WHERE id = $1`, [existingId, checkoutReason]);
+    } else {
+      await db.query(`UPDATE "Attendance" SET "checkOut" = NOW() WHERE id = $1`, [existingId]);
+    }
+
     return {
       status: 200,
       success: true,
@@ -393,7 +398,7 @@ router.get('/kiosk-token', async (req, res) => {
 // POST /api/attendance/scan-kiosk - Member scans the kiosk token
 router.post('/scan-kiosk', async (req, res) => {
   try {
-    const { token, action } = req.body;
+    const { token, action, checkoutReason } = req.body;
     if (!token) return res.status(400).json({ error: "Missing kiosk QR token" });
 
     // Identify member scanning the token
@@ -416,7 +421,7 @@ router.post('/scan-kiosk', async (req, res) => {
     }
 
     // Process check-in for the member
-    const result = await processCheckIn(userId, false, action); // No override from member phone
+    const result = await processCheckIn(userId, false, action, checkoutReason); // No override from member phone
     if (result.status !== 200) {
       return res.status(result.status).json(result);
     }

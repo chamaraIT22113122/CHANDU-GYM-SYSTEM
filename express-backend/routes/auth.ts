@@ -13,7 +13,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const result = await db.query('SELECT * FROM "User" WHERE email = $1', [email]);
+    const result = await db.query('SELECT id, email, password, role, "firstName", "lastName" FROM "User" WHERE email = $1', [email]);
     const user = result.rows[0];
 
     if (!user) {

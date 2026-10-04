@@ -6,7 +6,7 @@ const router = Router();
 
 router.get('/', async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM "GymPlan" ORDER BY price ASC');
+    const result = await db.query('SELECT id, name, description, price, "registrationFee", duration, features, "isPopular" FROM "GymPlan" ORDER BY price ASC');
     return res.json(result.rows);
   } catch (error) {
     console.error("Error fetching plans:", error);

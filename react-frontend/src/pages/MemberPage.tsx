@@ -64,6 +64,9 @@ export default function MemberPage() {
   const [activeSession, setActiveSession] = useState<any>(null);
   const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null);
   const [isExtending, setIsExtending] = useState(false);
+  const [showExtendPopup, setShowExtendPopup] = useState(false);
+  const [hasShownExtendPopup, setHasShownExtendPopup] = useState(false);
+  const [checkoutReasonPrompt, setCheckoutReasonPrompt] = useState<{ token: string } | null>(null);
   const [liveCapacity, setLiveCapacity] = useState<number>(0);
   const [maxCapacity, setMaxCapacity] = useState<number>(30);
   
@@ -251,15 +254,24 @@ export default function MemberPage() {
     };
   }, [activeTab]);
 
-  const handleScan = async (token: string) => {
-    if (isScanning) return;
+  const handleScan = async (token: string, reason?: string) => {
+    if (isScanning && !reason) return;
+    
+    // If leaving early, show prompt
+    if (intendedActionRef.current === 'OUT' && sessionTimeRemaining !== null && sessionTimeRemaining > 0 && !reason) {
+      if (scannerRef.current) { try { scannerRef.current.pause(); } catch {} }
+      setCheckoutReasonPrompt({ token });
+      return;
+    }
+
     setIsScanning(true);
+    setCheckoutReasonPrompt(null);
     setScanResult({ type: null, message: '' });
 
     try {
       const res = await apiFetch('/api/attendance/scan-kiosk', {
         method: 'POST',
-        body: JSON.stringify({ token, action: intendedActionRef.current })
+        body: JSON.stringify({ token, action: intendedActionRef.current, checkoutReason: reason })
       });
       const data = await res.json();
       
@@ -374,13 +386,19 @@ export default function MemberPage() {
       const now = new Date();
       const endMins = endHour * 60 + endMin;
       const currentMins = now.getHours() * 60 + now.getMinutes();
-      setSessionTimeRemaining(endMins - currentMins);
+      const remaining = endMins - currentMins;
+      setSessionTimeRemaining(remaining);
+      
+      if (remaining > 0 && remaining <= 15 && !hasShownExtendPopup) {
+        setHasShownExtendPopup(true);
+        setShowExtendPopup(true);
+      }
     };
     
     updateRemaining();
     const interval = setInterval(updateRemaining, 60000); // Update every minute
     return () => clearInterval(interval);
-  }, [activeSession]);
+  }, [activeSession, hasShownExtendPopup]);
 
   const handleExtendSession = async () => {
     if (!activeSession?.currentBooking || isExtending) return;
@@ -390,6 +408,7 @@ export default function MemberPage() {
       const data = await res.json();
       if (res.ok) {
         alert("Session extended successfully by 30 minutes!");
+        setShowExtendPopup(false);
         const statusRes = await apiFetch('/api/attendance/status');
         if (statusRes.ok) setActiveSession(await statusRes.json());
       } else {
@@ -1521,6 +1540,108 @@ export default function MemberPage() {
           </div>
         </div>
       )}
+
+      {/* Global Extend Session Popup Modal */}
+      <AnimatePresence>
+        {showExtendPopup && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="glass-panel w-full max-w-sm bg-gym-card relative z-10 p-6 border-t-4 border-orange-500 text-center"
+            >
+              <div className="mx-auto w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(249,115,22,0.2)]">
+                <CalendarClock className="h-8 w-8 text-orange-500" />
+              </div>
+              <h2 className="text-xl font-black text-white tracking-tight">
+                Session Ending Soon!
+              </h2>
+              <p className="text-gray-400 text-sm mt-2 mb-6">
+                You have {sessionTimeRemaining} minutes left in your session. Do you need more time to finish your workout?
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowExtendPopup(false)}
+                  className="flex-1 py-3 rounded-xl border border-white/10 text-gray-400 hover:bg-white/5 hover:text-white transition-colors font-bold text-sm"
+                >
+                  I'm Good
+                </button>
+                <button
+                  onClick={handleExtendSession}
+                  disabled={isExtending}
+                  className="flex-[1.5] py-3 rounded-xl bg-orange-500 hover:bg-orange-400 text-black font-black flex items-center justify-center transition-colors shadow-lg shadow-orange-500/20 disabled:opacity-50 text-sm"
+                >
+                  {isExtending ? <Loader2 className="h-5 w-5 animate-spin" /> : "Extend 30 Mins"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Checkout Reason Prompt Modal */}
+      <AnimatePresence>
+        {checkoutReasonPrompt && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="glass-panel w-full max-w-sm bg-gym-card relative z-10 p-6 border-t-4 border-orange-500"
+            >
+              <div className="text-center mb-6">
+                <div className="mx-auto w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(249,115,22,0.2)]">
+                  <LogOut className="h-8 w-8 text-orange-500" />
+                </div>
+                <h2 className="text-xl font-black text-white tracking-tight">
+                  Leaving Early?
+                </h2>
+                <p className="text-gray-400 text-sm mt-2">
+                  Your session hasn't ended yet ({sessionTimeRemaining} mins left). Please tell us why you are leaving early.
+                </p>
+              </div>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    setCheckoutReasonPrompt(null);
+                    handleScan(checkoutReasonPrompt.token, "Workout Finished");
+                  }}
+                  className="w-full py-3 rounded-xl border border-white/10 hover:bg-white/5 hover:border-gym-primary text-white font-bold transition-all text-sm"
+                >
+                  Workout Finished Early
+                </button>
+                <button
+                  onClick={() => {
+                    setCheckoutReasonPrompt(null);
+                    handleScan(checkoutReasonPrompt.token, "Personal Problem");
+                  }}
+                  className="w-full py-3 rounded-xl border border-white/10 hover:bg-white/5 hover:border-orange-500 text-white font-bold transition-all text-sm"
+                >
+                  Personal Problem / Emergency
+                </button>
+                <div className="pt-2 flex justify-center">
+                  <button
+                    onClick={() => {
+                      setCheckoutReasonPrompt(null);
+                      if (scannerRef.current) { try { scannerRef.current.resume(); } catch {} }
+                    }}
+                    className="text-gray-500 text-sm hover:text-white transition-colors"
+                  >
+                    Cancel Checkout
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Weight Prompt Modal */}
       <AnimatePresence>
