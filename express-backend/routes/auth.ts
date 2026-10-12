@@ -75,14 +75,26 @@ router.post('/member-login', async (req, res) => {
       return res.status(400).json({ error: "Please enter your Member ID or NIC" });
     }
 
+    const rawId = String(identifier).trim();
+    const withoutCG = rawId.replace(/^CG/i, '');
+    const withCG = `CG${withoutCG}`;
+
     const result = await db.query(
-      'SELECT * FROM "User" WHERE role = $1 AND ("membershipId" = $2 OR nic = $2)',
-      ['MEMBER', identifier]
+      `SELECT * FROM "User" 
+       WHERE role = $1 
+         AND (
+           "membershipId" = $2 
+           OR "membershipId" = $3 
+           OR "membershipId" = $4
+           OR nic = $2 
+           OR phone = $2
+         )`,
+      ['MEMBER', rawId, withCG, withoutCG]
     );
     const user = result.rows[0];
 
     if (!user) {
-      return res.status(401).json({ error: "Invalid Member ID or NIC" });
+      return res.status(401).json({ error: "Invalid Member ID, Phone Number or NIC" });
     }
 
     const token = signToken({

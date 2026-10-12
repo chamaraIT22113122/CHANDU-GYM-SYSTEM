@@ -211,7 +211,7 @@ export default function MemberProfilePage() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 font-medium">Address</p>
-                  <p className="text-sm text-gray-200">123 Gym Street, Fitness City, Colombo</p>
+                  <p className="text-sm text-gray-200">{member.address || 'Not Provided'}</p>
                 </div>
               </div>
 

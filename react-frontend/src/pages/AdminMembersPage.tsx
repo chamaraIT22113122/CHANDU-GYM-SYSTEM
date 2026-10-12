@@ -2,7 +2,7 @@ import { apiFetch } from "../lib/api";
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Plus, Filter, MoreVertical, X, Loader2, ChevronRight, ChevronLeft, Check, User } from "lucide-react";
+import { Search, Plus, Filter, MoreVertical, X, Loader2, ChevronRight, ChevronLeft, Check, User, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from 'react-router-dom';
 
@@ -40,6 +40,16 @@ export default function AdminMembersPage() {
   const [selectedPlan, setSelectedPlan] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  
+  // Bulk Activation State
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkDuration, setBulkDuration] = useState("12");
+  const [bulkPackageName, setBulkPackageName] = useState("Annual");
+  const [bulkBaseFee, setBulkBaseFee] = useState("20000");
+  const [bulkScope, setBulkScope] = useState<"selected" | "all">("selected");
+  const [isBulking, setIsBulking] = useState(false);
+  const [bulkSuccessMsg, setBulkSuccessMsg] = useState("");
   
   // Wizard State
   const [currentStep, setCurrentStep] = useState(1);
@@ -90,6 +100,73 @@ export default function AdminMembersPage() {
   useEffect(() => {
     fetchMembers();
   }, []);
+
+  const filteredMembers = members.filter(m => {
+    const q = searchTerm.toLowerCase();
+    return (
+      `${m.firstName} ${m.lastName}`.toLowerCase().includes(q) ||
+      (m.membershipId && m.membershipId.toLowerCase().includes(q)) ||
+      (m.phone && m.phone.toLowerCase().includes(q)) ||
+      (m.address && m.address.toLowerCase().includes(q)) ||
+      (m.email && m.email.toLowerCase().includes(q))
+    );
+  });
+
+  const toggleSelectAll = () => {
+    if (selectedMemberIds.length === filteredMembers.length && filteredMembers.length > 0) {
+      setSelectedMemberIds([]);
+    } else {
+      setSelectedMemberIds(filteredMembers.map(m => m.id));
+    }
+  };
+
+  const toggleSelectMember = (id: string) => {
+    setSelectedMemberIds(prev =>
+      prev.includes(id) ? prev.filter(mId => mId !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkActivate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsBulking(true);
+    setBulkSuccessMsg("");
+    try {
+      const payload: any = {
+        durationMonths: parseInt(bulkDuration) || 12,
+        packageName: bulkPackageName,
+        baseFee: parseFloat(bulkBaseFee) || 20000
+      };
+
+      if (bulkScope === 'all') {
+        payload.all = true;
+      } else {
+        payload.userIds = selectedMemberIds;
+      }
+
+      const res = await apiFetch('/api/members/bulk-activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBulkSuccessMsg(data.message || `Successfully activated ${data.count} members!`);
+        setSelectedMemberIds([]);
+        await fetchMembers();
+        setTimeout(() => {
+          setIsBulkModalOpen(false);
+          setBulkSuccessMsg("");
+        }, 1800);
+      } else {
+        alert(data.error || "Failed to bulk activate");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error occurred during bulk activation");
+    } finally {
+      setIsBulking(false);
+    }
+  };
 
   // Handle Image Upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -246,18 +323,73 @@ export default function AdminMembersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Members Directory</h1>
-          <p className="text-gray-400 mt-1">Manage and view all registered gym members.</p>
+          <p className="text-gray-400 mt-1">Manage, activate, and view all registered gym members ({members.length} total).</p>
         </div>
-        <motion.button 
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={handleOpenAddModal}
-          className="flex items-center gap-2 bg-gym-primary hover:bg-gym-accent text-black px-4 py-2 rounded-xl transition-colors font-bold shadow-lg shadow-gym-primary/20"
-        >
-          <Plus className="h-4 w-4" />
-          Add New Member
-        </motion.button>
+        <div className="flex items-center gap-3">
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              setBulkScope(selectedMemberIds.length > 0 ? "selected" : "all");
+              setIsBulkModalOpen(true);
+            }}
+            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-2 rounded-xl transition-colors font-bold shadow-lg shadow-emerald-500/20"
+          >
+            <Zap className="h-4 w-4" />
+            Bulk Activate {selectedMemberIds.length > 0 ? `(${selectedMemberIds.length})` : "Members"}
+          </motion.button>
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleOpenAddModal}
+            className="flex items-center gap-2 bg-gym-primary hover:bg-gym-accent text-black px-4 py-2 rounded-xl transition-colors font-bold shadow-lg shadow-gym-primary/20"
+          >
+            <Plus className="h-4 w-4" />
+            Add New Member
+          </motion.button>
+        </div>
       </div>
+
+      {selectedMemberIds.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-emerald-400">
+              ✓ {selectedMemberIds.length} of {members.length} members selected
+            </span>
+            <button 
+              type="button"
+              onClick={() => setSelectedMemberIds(members.map(m => m.id))}
+              className="text-xs text-gray-400 hover:text-white underline transition-colors"
+            >
+              Select all {members.length} members
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              type="button"
+              onClick={() => {
+                setBulkScope("selected");
+                setIsBulkModalOpen(true);
+              }}
+              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              Activate Selected ({selectedMemberIds.length})
+            </button>
+            <button 
+              type="button"
+              onClick={() => setSelectedMemberIds([])}
+              className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              Deselect All
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       <div className="glass-panel p-4 flex flex-col sm:flex-row gap-4 justify-between items-center">
         <div className="relative w-full sm:w-96">
@@ -284,27 +416,46 @@ export default function AdminMembersPage() {
             <table className="w-full min-w-[800px] text-left text-sm text-gray-400">
               <thead className="text-xs uppercase bg-black/20 text-gray-500 border-b border-white/5">
                 <tr>
+                  <th scope="col" className="w-12 px-4 py-4 text-center">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedMemberIds.length > 0 && selectedMemberIds.length === filteredMembers.length}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded bg-black/40 border-white/20 text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-500"
+                    />
+                  </th>
                   <th scope="col" className="px-6 py-4">Member</th>
+                  <th scope="col" className="px-6 py-4">Phone / Address</th>
+                  <th scope="col" className="px-6 py-4">Active Plan</th>
                   <th scope="col" className="px-6 py-4">Status</th>
                   <th scope="col" className="px-6 py-4">Join Date</th>
                   <th scope="col" className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {members.map((member, idx) => {
+                {filteredMembers.map((member, idx) => {
                   const status = member.memberships?.[0]?.status || "NO PLAN";
+                  const isSelected = selectedMemberIds.includes(member.id);
                   return (
                     <motion.tr 
                       onClick={() => navigate(`/admin/members/${member.id}`)}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
+                      transition={{ delay: Math.min(idx * 0.02, 0.5) }}
                       key={member.id} 
-                      className="border-b border-white/5 hover:bg-white/10 transition-colors group cursor-pointer"
+                      className={`border-b border-white/5 hover:bg-white/10 transition-colors group cursor-pointer ${isSelected ? 'bg-emerald-500/5' : ''}`}
                     >
+                      <td className="w-12 px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected}
+                          onChange={() => toggleSelectMember(member.id)}
+                          className="w-4 h-4 rounded bg-black/40 border-white/20 text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-500"
+                        />
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gym-card border border-white/10 flex items-center justify-center font-bold text-white overflow-hidden">
+                          <div className="w-10 h-10 rounded-full bg-gym-card border border-white/10 flex items-center justify-center font-bold text-white overflow-hidden flex-shrink-0">
                             {member.imageUrl ? (
                               <img src={member.imageUrl} alt={member.firstName} className="w-full h-full object-cover" />
                             ) : (
@@ -318,6 +469,18 @@ export default function AdminMembersPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
+                        <div className="text-xs text-gray-300">{member.phone || "No phone"}</div>
+                        <div className="text-xs text-gray-500 truncate max-w-[200px]">{member.address || ""}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-white font-medium text-xs">
+                          {member.memberships?.[0]?.packageName || "Annual"}
+                        </div>
+                        <div className="text-[11px] text-gray-500">
+                          {member.memberships?.[0]?.packageDuration || "12 Months"}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
                           status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
                           status === 'OVERDUE' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
@@ -328,7 +491,7 @@ export default function AdminMembersPage() {
                       </td>
                       <td className="px-6 py-4">{new Date(member.joinDate).toLocaleDateString()}</td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                           <button 
                             onClick={(e) => handleEditClick(e, member)}
                             className="px-3 py-1.5 text-xs font-medium rounded-lg bg-gym-primary/10 text-gym-primary hover:bg-gym-primary hover:text-black transition-colors"
@@ -346,10 +509,10 @@ export default function AdminMembersPage() {
                     </motion.tr>
                   );
                 })}
-                {members.length === 0 && (
+                {filteredMembers.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                      No members found. Add one to get started!
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                      No members found matching your search.
                     </td>
                   </tr>
                 )}
@@ -679,6 +842,151 @@ export default function AdminMembersPage() {
                       {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : editingMemberId ? "Update Member" : "Save Member"}
                     </button>
                   )}
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Activate Modal */}
+      <AnimatePresence>
+        {isBulkModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => !isBulking && setIsBulkModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-panel w-full max-w-lg bg-gym-card relative z-10 p-6 md:p-8"
+            >
+              <button 
+                onClick={() => !isBulking && setIsBulkModalOpen(false)}
+                className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white rounded-full hover:bg-white/10"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <Zap className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Bulk Activate Memberships</h2>
+                  <p className="text-xs text-gray-400">Activate or renew active memberships in batch.</p>
+                </div>
+              </div>
+
+              {bulkSuccessMsg && (
+                <div className="my-4 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-medium flex items-center gap-2">
+                  <Check className="h-4 w-4" />
+                  {bulkSuccessMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleBulkActivate} className="space-y-5 mt-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Target Members</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBulkScope("selected")}
+                      disabled={selectedMemberIds.length === 0}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        bulkScope === 'selected' 
+                          ? 'border-emerald-500 bg-emerald-500/10 text-white font-medium' 
+                          : 'border-white/10 bg-black/20 text-gray-400 hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed'
+                      }`}
+                    >
+                      <div className="text-sm font-bold">Selected Only</div>
+                      <div className="text-xs text-gray-500">{selectedMemberIds.length} members chosen</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBulkScope("all")}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        bulkScope === 'all' 
+                          ? 'border-emerald-500 bg-emerald-500/10 text-white font-medium' 
+                          : 'border-white/10 bg-black/20 text-gray-400 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="text-sm font-bold">All Members</div>
+                      <div className="text-xs text-gray-500">All {members.length} gym members</div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Duration</label>
+                    <select
+                      value={bulkDuration}
+                      onChange={(e) => setBulkDuration(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-white/10 rounded-xl bg-black/30 text-white focus:ring-2 focus:ring-emerald-500/50"
+                    >
+                      <option value="1">1 Month</option>
+                      <option value="3">3 Months (Quarterly)</option>
+                      <option value="6">6 Months (Bi-Annual)</option>
+                      <option value="12">12 Months (Annual)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Package Name</label>
+                    <select
+                      value={bulkPackageName}
+                      onChange={(e) => setBulkPackageName(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-white/10 rounded-xl bg-black/30 text-white focus:ring-2 focus:ring-emerald-500/50"
+                    >
+                      <option value="Annual">Annual</option>
+                      <option value="Standard">Standard</option>
+                      <option value="Trials">Trials</option>
+                      {gymPlans.filter(p => !['Annual', 'Standard', 'Trials'].includes(p.name)).map(p => (
+                        <option key={p.id} value={p.name}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Base Fee (Rs.)</label>
+                  <input
+                    type="number"
+                    value={bulkBaseFee}
+                    onChange={(e) => setBulkBaseFee(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-white/10 rounded-xl bg-black/30 text-white focus:ring-2 focus:ring-emerald-500/50"
+                    required
+                  />
+                </div>
+
+                <div className="p-3 bg-black/40 border border-white/5 rounded-xl text-xs text-gray-400 space-y-1">
+                  <p className="text-gray-300 font-medium">Summary:</p>
+                  <p>• Members to activate: <span className="text-emerald-400 font-bold">{bulkScope === 'all' ? members.length : selectedMemberIds.length} members</span></p>
+                  <p>• Status will be set to: <span className="text-emerald-400 font-bold">ACTIVE</span></p>
+                  <p>• Renewal date set to: <span className="text-white font-bold">{bulkDuration} months from today</span></p>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsBulkModalOpen(false)}
+                    disabled={isBulking}
+                    className="px-5 py-2.5 rounded-xl border border-white/10 text-white hover:bg-white/5 transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isBulking || (bulkScope === 'selected' && selectedMemberIds.length === 0)}
+                    className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold flex items-center justify-center min-w-[150px] transition-colors text-sm shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                  >
+                    {isBulking ? <Loader2 className="h-5 w-5 animate-spin" /> : "Confirm & Activate"}
+                  </button>
                 </div>
               </form>
             </motion.div>

@@ -577,6 +577,8 @@ export default function AdminMemberDetailsPage() {
                   <div className="space-y-3">
                     <div><span className="text-gray-500 text-xs block uppercase tracking-wider">Email</span> <p className="text-white text-sm">{member.email || "N/A"}</p></div>
                     <div><span className="text-gray-500 text-xs block uppercase tracking-wider">Phone</span> <p className="text-white text-sm">{member.phone || "N/A"}</p></div>
+                    {member.address && <div><span className="text-gray-500 text-xs block uppercase tracking-wider">Address</span> <p className="text-white text-sm">{member.address}</p></div>}
+                    {member.dob && <div><span className="text-gray-500 text-xs block uppercase tracking-wider">Date of Birth</span> <p className="text-white text-sm">{new Date(member.dob).toLocaleDateString()}</p></div>}
                     <div><span className="text-gray-500 text-xs block uppercase tracking-wider">Join Date</span> <p className="text-white text-sm">{new Date(member.joinDate).toLocaleDateString()}</p></div>
                   </div>
 

@@ -37,8 +37,8 @@ router.get('/next-id', async (req, res) => {
   try {
     const result = await db.query(`
       SELECT "membershipId" FROM "User" 
-      WHERE "membershipId" LIKE 'CG%' 
-      ORDER BY "membershipId" DESC 
+      WHERE "membershipId" ~ '^CG[0-9]+$' 
+      ORDER BY CAST(SUBSTRING("membershipId" FROM 3) AS BIGINT) DESC 
       LIMIT 1
     `);
     
@@ -70,10 +70,10 @@ router.post('/', async (req, res) => {
     const insertUserText = `
       INSERT INTO "User" (
         id, "firstName", "lastName", email, "membershipId", nic, "imageUrl", 
-        password, phone, role, "specialCases", injuries, "dietAlerts", 
+        password, phone, address, dob, role, "specialCases", injuries, "dietAlerts", 
         height, weight, "targetWeight", "joinDate", "createdAt", "updatedAt"
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW(), NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW(), NOW()
       ) RETURNING *
     `;
     const insertUserValues = [
@@ -86,6 +86,8 @@ router.post('/', async (req, res) => {
       data.imageUrl || null,
       hashedPassword,
       data.phone || null,
+      data.address || null,
+      data.dob || null,
       "MEMBER",
       data.specialCases || null,
       data.injuries || null,
@@ -138,6 +140,86 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: "A member with this unique field already exists." });
     }
     return res.status(500).json({ error: "Failed to create member" });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/bulk-activate', async (req, res) => {
+  const client = await db.connect();
+  try {
+    const { userIds, all, durationMonths = 12, packageName = 'Annual', baseFee = 20000 } = req.body;
+    
+    let targetUserIds: string[] = [];
+    if (all) {
+      const usersRes = await client.query('SELECT id FROM "User" WHERE role = \'MEMBER\'');
+      targetUserIds = usersRes.rows.map(r => r.id);
+    } else if (Array.isArray(userIds) && userIds.length > 0) {
+      targetUserIds = userIds;
+    } else {
+      return res.status(400).json({ error: "No members specified for bulk activation" });
+    }
+
+    await client.query('BEGIN');
+
+    const months = parseInt(durationMonths) || 12;
+    const endDate = new Date();
+    endDate.setMonth(endDate.getMonth() + months);
+
+    let activatedCount = 0;
+
+    for (const uId of targetUserIds) {
+      const checkRes = await client.query(
+        'SELECT id FROM "Membership" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 1',
+        [uId]
+      );
+
+      if (checkRes.rows.length > 0) {
+        await client.query(`
+          UPDATE "Membership" SET
+            status = 'ACTIVE',
+            "endDate" = $1,
+            "baseFee" = $2,
+            "packageName" = $3,
+            "packageDuration" = $4,
+            "updatedAt" = NOW()
+          WHERE id = $5
+        `, [
+          endDate,
+          parseFloat(baseFee) || 20000,
+          packageName,
+          `${months} Months`,
+          checkRes.rows[0].id
+        ]);
+      } else {
+        await client.query(`
+          INSERT INTO "Membership" (
+            id, "userId", "startDate", "endDate", status, branch,
+            "packageTime", "packageName", "packageDuration",
+            "baseFee", "maintenanceFee", "penaltyFee", "createdAt", "updatedAt"
+          ) VALUES (
+            $1, $2, NOW(), $3, 'ACTIVE', 'Main Branch',
+            'Full Time', $4, $5,
+            $6, 500, 0, NOW(), NOW()
+          )
+        `, [
+          crypto.randomUUID(),
+          uId,
+          endDate,
+          packageName,
+          `${months} Months`,
+          parseFloat(baseFee) || 20000
+        ]);
+      }
+      activatedCount++;
+    }
+
+    await client.query('COMMIT');
+    return res.json({ success: true, count: activatedCount, message: `Successfully activated ${activatedCount} members.` });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error("Bulk activation error:", error);
+    return res.status(500).json({ error: "Failed to bulk activate members" });
   } finally {
     client.release();
   }
@@ -300,12 +382,20 @@ router.put('/:id', async (req, res) => {
     const updateQuery = `
       UPDATE "User" SET 
         "firstName" = $1, "lastName" = $2, email = $3, phone = $4,
-        "specialCases" = $5, injuries = $6, "dietAlerts" = $7, "updatedAt" = NOW()
-      WHERE id = $8 RETURNING *
+        "specialCases" = $5, injuries = $6, "dietAlerts" = $7,
+        address = $8, dob = $9,
+        height = $10, weight = $11, "targetWeight" = $12,
+        "updatedAt" = NOW()
+      WHERE id = $13 RETURNING *
     `;
     const values = [
       data.firstName, data.lastName, data.email, data.phone,
-      data.specialCases, data.injuries, data.dietAlerts, id
+      data.specialCases, data.injuries, data.dietAlerts,
+      data.address || null, data.dob || null,
+      data.height ? parseFloat(data.height) : null,
+      data.weight ? parseFloat(data.weight) : null,
+      data.targetWeight ? parseFloat(data.targetWeight) : null,
+      id
     ];
     
     const result = await db.query(updateQuery, values);

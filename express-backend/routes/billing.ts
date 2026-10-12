@@ -8,6 +8,7 @@ router.get('/', async (req, res) => {
     const query = `
       SELECT 
         m.id, m."startDate", m."endDate", m.status, m."baseFee", m."maintenanceFee", m."penaltyFee",
+        m."packageName", m."packageDuration", m."packageTime", m.branch,
         json_build_object(
           'id', u.id,
           'membershipId', u."membershipId",

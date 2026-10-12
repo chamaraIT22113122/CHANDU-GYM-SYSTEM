@@ -14,6 +14,8 @@ type Membership = {
   baseFee: number;
   maintenanceFee: number;
   penaltyFee: number;
+  packageName?: string | null;
+  packageDuration?: string | null;
   user: {
     id: string;
     membershipId: string | null;
@@ -282,6 +284,7 @@ export default function AdminBillingPage() {
                 <thead>
                   <tr className="border-b border-white/10 text-xs uppercase tracking-wider text-gray-400 bg-black/10">
                     <th className="px-6 py-4 font-medium">Member</th>
+                    <th className="px-6 py-4 font-medium">Active Plan</th>
                     <th className="px-6 py-4 font-medium">Status</th>
                     <th className="px-6 py-4 font-medium">Renewal Date</th>
                     <th className="px-6 py-4 font-medium text-right">Total Due</th>
@@ -308,6 +311,14 @@ export default function AdminBillingPage() {
                           <span className="text-xs text-gray-500">
                             {m.user.membershipId ? `#${m.user.membershipId} • ` : ""}
                             {m.user.phone || "No phone"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-white font-medium text-sm block">
+                            {m.packageName || "Annual"}
+                          </span>
+                          <span className="text-xs text-gym-primary font-medium">
+                            {m.packageDuration || "12 Months"}
                           </span>
                         </td>
                         <td className="px-6 py-4">
